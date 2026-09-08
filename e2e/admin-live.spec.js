@@ -36,7 +36,7 @@ test('live admin lifecycle, database privacy and stale-session revocation', asyn
     await target.getByRole('radio', { name: portal, exact: true }).check()
     await target.getByLabel('Email', { exact: true }).fill(email)
     await target.getByLabel('Password', { exact: true }).fill(password)
-    await target.getByRole('button', { name: 'Sign in securely' }).click()
+    await target.getByRole('button', { name: 'Sign In' }).click()
   }
 
   await signInUi(page, 'Admin', admin.email, admin.password)

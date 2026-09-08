@@ -61,12 +61,62 @@ async function signIn(page, role) {
   await page.getByRole('radio', { name: role, exact: true }).check()
   await page.getByLabel('Email', { exact: true }).fill(`${role.toLowerCase()}@example.com`)
   await page.getByLabel('Password', { exact: true }).fill('DesignOnly!123')
-  await page.getByRole('button', { name: 'Sign in securely' }).click()
+  await page.getByRole('button', { name: 'Sign In' }).click()
 }
 
 async function noOverflow(page) {
   const bounds = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth }))
   expect(bounds.document).toBeLessThanOrEqual(bounds.viewport)
+  const uncentered = await page.locator('button').evaluateAll(buttons => buttons
+    .filter(button => button.getBoundingClientRect().width && button.innerText.trim())
+    .filter(button => getComputedStyle(button).textAlign !== 'center')
+    .map(button => ({ text: button.innerText, className: button.className })))
+  expect(uncentered, 'Button labels must be centered in every portal').toEqual([])
+}
+
+for (const [width, height] of [[3440, 1440], [2560, 1440], [1920, 1080], [1440, 900], [1024, 768], [960, 540], [768, 1024], [390, 844], [320, 640]]) {
+  test(`login fills ${width}x${height} with readable, centered Sign In`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width, height })
+    await mockWorkspace(page, 'client')
+    await page.evaluate(() => document.fonts.ready)
+    await noOverflow(page)
+    const layout = await page.evaluate(() => {
+      const card = document.querySelector('.auth-login').getBoundingClientRect()
+      const hero = document.querySelector('.auth-hero').getBoundingClientRect()
+      const body = document.querySelector('.auth-login-body').getBoundingClientRect()
+      const form = document.querySelector('.auth-login-body form').getBoundingClientRect()
+      const heading = document.querySelector('.auth-login-body h1').getBoundingClientRect()
+      const button = document.querySelector('.auth-login-body button')
+      const bounds = button.getBoundingClientRect()
+      const range = document.createRange()
+      range.selectNodeContents(button)
+      const label = range.getBoundingClientRect()
+      return { cardWidth: card.width, cardHeight: card.height, cardLeft: card.left, cardTop: card.top,
+        heroRight: hero.right, heroBottom: hero.bottom, bodyLeft: body.left, bodyTop: body.top,
+        formWidth: form.width, formLeft: form.left, headingLeft: heading.left,
+        labelOffset: Math.abs(label.x + label.width / 2 - (bounds.x + bounds.width / 2)),
+        buttonFont: parseFloat(getComputedStyle(button).fontSize), buttonHeight: bounds.height }
+    })
+    expect(layout.cardWidth).toBe(width)
+    expect(layout.cardHeight).toBeGreaterThanOrEqual(height)
+    expect(layout.cardLeft).toBe(0)
+    expect(layout.cardTop).toBe(0)
+    expect(layout.formWidth).toBeLessThanOrEqual(640)
+    expect(Math.abs(layout.formLeft - layout.headingLeft)).toBeLessThan(1)
+    expect(layout.labelOffset).toBeLessThan(1)
+    expect(layout.buttonFont).toBeGreaterThanOrEqual(18)
+    expect(layout.buttonHeight).toBeGreaterThanOrEqual(56)
+    if (width > 760) expect(Math.abs(layout.heroRight - layout.bodyLeft)).toBeLessThan(1)
+    else expect(layout.bodyTop).toBeGreaterThanOrEqual(layout.heroBottom)
+    const button = page.getByRole('button', { name: 'Sign In', exact: true })
+    await expect(button).toBeVisible()
+    await button.scrollIntoViewIfNeeded()
+    await expect(button).toBeInViewport()
+    if (width === 1920 || width === 390) {
+      await page.evaluate(() => window.scrollTo(0, 0))
+      await page.screenshot({ path: testInfo.outputPath(`login-${width}.png`), fullPage: true })
+    }
+  })
 }
 
 async function checkTheme(page) {
@@ -207,8 +257,8 @@ test('login keeps accessible keyboard selection, errors and reduced motion', asy
   expect(await page.getByRole('alert').evaluate(el => getComputedStyle(el).color)).toBe('rgb(240, 170, 167)')
   await page.getByLabel('Password', { exact: true }).focus()
   await page.keyboard.press('Tab')
-  await expect(page.getByRole('button', { name: 'Sign in securely' })).toBeFocused()
-  expect(await page.getByRole('button', { name: 'Sign in securely' }).evaluate(el => getComputedStyle(el).outlineStyle)).toBe('solid')
+  await expect(page.getByRole('button', { name: 'Sign In' })).toBeFocused()
+  expect(await page.getByRole('button', { name: 'Sign In' }).evaluate(el => getComputedStyle(el).outlineStyle)).toBe('solid')
   await noOverflow(page)
 })
 

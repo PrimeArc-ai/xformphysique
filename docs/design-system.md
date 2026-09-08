@@ -34,6 +34,8 @@ Use Volt for primary actions, selected navigation, chart series and limited head
 - Primary actions have a contrasting inset keyboard-focus indicator because an external outline would be clipped by the chamfer. Other controls use the Volt focus outline.
 - Preserve accessible labels, keyboard controls, disabled/loading states, alert messages and reduced-motion support.
 - Use larger text inputs on mobile to avoid browser zoom; keep the existing responsive navigation and horizontally scrollable data tables.
+- Center button labels across actions, navigation, dialogs and uploads. Icons must not push full-width labels to an edge.
+- Login fills the viewport with a fluid photographic/form split on desktop and a stacked layout on mobile. Scale spacing and typography with the viewport, but keep the form at a readable maximum width of 640 px. The primary login label is **Sign In**, at 18–24 px.
 
 Fonts are self-hosted in `src/assets/fonts/` with their OFL licenses. The existing generated editorial photograph in `src/assets/brand/` is a static brand asset, not a client's photograph. Client uploads still use their existing protected API paths; nothing is moved into public assets.
 

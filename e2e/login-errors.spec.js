@@ -30,10 +30,10 @@ for (const scenario of [
 ]) {
   test(`login handles ${scenario.name} without opening a workspace`, async ({ page }) => {
     await prepareLogin(page, route => route.fulfill(scenario.response))
-    await page.getByRole('button', { name: 'Sign in securely' }).click()
+    await page.getByRole('button', { name: 'Sign In' }).click()
     await expect(page.getByRole('alert')).toHaveText(scenario.message)
     await expect(page.getByRole('heading', { name: 'Command Center' })).toHaveCount(0)
-    await expect(page.getByRole('button', { name: 'Sign in securely' })).toBeEnabled()
+    await expect(page.getByRole('button', { name: 'Sign In' })).toBeEnabled()
     await expect.poll(() => page.evaluate(() => Object.keys(localStorage).filter(key => /^sb-.*-auth-token$/.test(key)))).toEqual([])
   })
 }
@@ -45,9 +45,9 @@ test('network failure allows a successful retry after the server returns', async
     : route.abort('connectionrefused'))
   await page.route('**/api/v1/coach/clients', route => route.fulfill({ json: { items: [] } }))
   await page.route('**/api/v1/coach/profile/photo', route => route.fulfill({ json: { photo: null } }))
-  await page.getByRole('button', { name: 'Sign in securely' }).click()
+  await page.getByRole('button', { name: 'Sign In' }).click()
   await expect(page.getByRole('alert')).toHaveText('Unable to reach the XForm server. Check your connection and try again.')
   available = true
-  await page.getByRole('button', { name: 'Sign in securely' }).click()
+  await page.getByRole('button', { name: 'Sign In' }).click()
   await expect(page.getByRole('heading', { name: 'Command Center' })).toBeVisible()
 })

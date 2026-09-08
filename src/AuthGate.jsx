@@ -20,7 +20,7 @@ export default function AuthGate({ auth }) {
     }
   }
 
-  return <main className="auth-shell">
+  return <main className="auth-shell auth-login-shell">
     <section className="auth-card auth-login" aria-labelledby="auth-title">
       <div className="auth-hero">
         <div className="os-brand auth-brand"><span className="xp-mark">XP</span><span><strong>XFORM</strong><small>COACHING OS</small></span></div>
@@ -41,7 +41,7 @@ export default function AuthGate({ auth }) {
         <label>Email<input type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label>
         <label>Password<input type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required /></label>
         {error && <div className="auth-error" role="alert">{error}</div>}
-        <button className="lime-button" disabled={submitting || !auth.configured}>{submitting ? 'Signing in…' : 'Sign in securely'}<span aria-hidden="true">→</span></button>
+        <button className="lime-button" disabled={submitting || !auth.configured}>{submitting ? 'Signing in…' : 'Sign In'}</button>
       </form>
       {!auth.configured && <div className="auth-error" role="alert">Supabase configuration is missing. Add the local environment values, then restart Vite.</div>}
       <small className="auth-footnote">Your account permissions protect each workspace. Selecting a portal does not change your access.</small>

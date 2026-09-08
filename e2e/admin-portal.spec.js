@@ -33,7 +33,7 @@ async function login(page, portal = 'Admin') {
   await page.getByRole('radio', { name: portal, exact: true }).check()
   await page.getByLabel('Email', { exact: true }).fill('admin@example.com')
   await page.getByLabel('Password', { exact: true }).fill('MockPassword!123')
-  await page.getByRole('button', { name: 'Sign in securely' }).click()
+  await page.getByRole('button', { name: 'Sign In' }).click()
 }
 
 test('portal mismatch stays at login and never opens an admin workspace', async ({ page }) => {

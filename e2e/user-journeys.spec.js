@@ -35,7 +35,7 @@ async function signIn(page, identity) {
   await page.getByRole('radio', { name: identity.portal, exact: true }).check()
   await page.getByLabel('Email').fill(identity.email)
   await page.getByLabel('Password').fill(identity.password)
-  await page.getByRole('button', { name: 'Sign in securely' }).click()
+  await page.getByRole('button', { name: 'Sign In' }).click()
 }
 
 async function signOut(page) {
