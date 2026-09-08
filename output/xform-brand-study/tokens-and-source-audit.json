@@ -1,0 +1,406 @@
+{
+  "scope": "Static design previews only; no app, account or database changes.",
+  "source": [
+    {
+      "file": "src/styles.css",
+      "sha256": "60b865ac1c38320836c98bf5814391b0d6a7cc6746f67e73b0bdde25bff6c31e",
+      "topColours": [
+        [
+          "#293036",
+          37
+        ],
+        [
+          "#B8FF2B",
+          28
+        ],
+        [
+          "#30383E",
+          20
+        ],
+        [
+          "#0D1115",
+          9
+        ],
+        [
+          "#11161A",
+          7
+        ],
+        [
+          "#090B0D",
+          5
+        ],
+        [
+          "#E9ECE6",
+          5
+        ],
+        [
+          "#778188",
+          5
+        ],
+        [
+          "#101419",
+          5
+        ],
+        [
+          "#C7FF55",
+          5
+        ],
+        [
+          "#7C878B",
+          5
+        ],
+        [
+          "#7D878B",
+          4
+        ],
+        [
+          "#B4BCBC",
+          4
+        ],
+        [
+          "#EEB273",
+          4
+        ],
+        [
+          "#252A2F",
+          3
+        ],
+        [
+          "#F3F5EF",
+          3
+        ],
+        [
+          "#11151A",
+          3
+        ],
+        [
+          "#0C0F13",
+          3
+        ],
+        [
+          "#8CC228",
+          3
+        ],
+        [
+          "#7E898C",
+          3
+        ]
+      ]
+    },
+    {
+      "file": "src/admin.css",
+      "sha256": "940909c99d89a4b45021b3a2914c4ef18dc7d89f1e43ed3c721057d165777403",
+      "topColours": [
+        [
+          "#B2DB83",
+          2
+        ],
+        [
+          "#8D9B9F",
+          2
+        ],
+        [
+          "#2B3539",
+          2
+        ],
+        [
+          "#191F22",
+          2
+        ],
+        [
+          "#95A3A9",
+          2
+        ],
+        [
+          "#3B484C",
+          1
+        ],
+        [
+          "#BECACB",
+          1
+        ],
+        [
+          "#293234",
+          1
+        ],
+        [
+          "#536461",
+          1
+        ],
+        [
+          "#A2ADB0",
+          1
+        ],
+        [
+          "#333E41",
+          1
+        ],
+        [
+          "#101517",
+          1
+        ],
+        [
+          "#99A5A9",
+          1
+        ],
+        [
+          "#283033",
+          1
+        ],
+        [
+          "#E8F0E8",
+          1
+        ],
+        [
+          "#C6CFCA",
+          1
+        ],
+        [
+          "#E9EEE8",
+          1
+        ],
+        [
+          "#12181B",
+          1
+        ],
+        [
+          "#364045",
+          1
+        ],
+        [
+          "#E1E8E6",
+          1
+        ]
+      ]
+    },
+    {
+      "file": "src/profile-photos.css",
+      "sha256": "53ae5bbbb570e47f1f5012d1e5abbc99c0de130e55690c7592cf84661df700cf",
+      "topColours": [
+        [
+          "#778286",
+          1
+        ],
+        [
+          "#3A4744",
+          1
+        ],
+        [
+          "#C8FF5A",
+          1
+        ],
+        [
+          "#1C2827",
+          1
+        ],
+        [
+          "#12171A",
+          1
+        ],
+        [
+          "#E9EEE6",
+          1
+        ],
+        [
+          "#808B8C",
+          1
+        ],
+        [
+          "#3E5631",
+          1
+        ],
+        [
+          "#C7FF59",
+          1
+        ],
+        [
+          "#172012",
+          1
+        ],
+        [
+          "#80A849",
+          1
+        ],
+        [
+          "#202B17",
+          1
+        ]
+      ]
+    }
+  ],
+  "darkSourceVerification": {
+    "background": true,
+    "surface": true,
+    "raised": true,
+    "sidebar": true,
+    "border": true,
+    "text": true,
+    "muted": true,
+    "brand": true,
+    "action": true,
+    "actionText": true,
+    "active": true,
+    "activeText": true
+  },
+  "tokens": {
+    "dark": {
+      "background": "#090B0D",
+      "surface": "#101419",
+      "raised": "#171C20",
+      "sidebar": "#0B0D10",
+      "border": "#293036",
+      "text": "#F4F6F1",
+      "muted": "#9AA1A5",
+      "brand": "#B8FF2B",
+      "action": "#B8FF2B",
+      "actionText": "#121608",
+      "active": "#1C2512",
+      "activeText": "#B8FF2B"
+    },
+    "light": {
+      "background": "#F6F7F2",
+      "surface": "#FFFFFF",
+      "raised": "#EBEFE5",
+      "sidebar": "#EFF2E9",
+      "border": "#D7DED2",
+      "text": "#1C2921",
+      "muted": "#59695D",
+      "brand": "#B8FF2B",
+      "action": "#314B36",
+      "actionText": "#FFFFFF",
+      "active": "#DCE8CC",
+      "activeText": "#314B36"
+    }
+  },
+  "contrastChecks": [
+    {
+      "theme": "dark",
+      "foreground": "text",
+      "background": "background",
+      "ratio": 18.12,
+      "normalTextMinimum": 4.5,
+      "pass": true
+    },
+    {
+      "theme": "dark",
+      "foreground": "text",
+      "background": "surface",
+      "ratio": 16.99,
+      "normalTextMinimum": 4.5,
+      "pass": true
+    },
+    {
+      "theme": "dark",
+      "foreground": "muted",
+      "background": "surface",
+      "ratio": 7.05,
+      "normalTextMinimum": 4.5,
+      "pass": true
+    },
+    {
+      "theme": "dark",
+      "foreground": "muted",
+      "background": "raised",
+      "ratio": 6.55,
+      "normalTextMinimum": 4.5,
+      "pass": true
+    },
+    {
+      "theme": "dark",
+      "foreground": "muted",
+      "background": "active",
+      "ratio": 6.06,
+      "normalTextMinimum": 4.5,
+      "pass": true
+    },
+    {
+      "theme": "dark",
+      "foreground": "actionText",
+      "background": "action",
+      "ratio": 15.19,
+      "normalTextMinimum": 4.5,
+      "pass": true
+    },
+    {
+      "theme": "dark",
+      "foreground": "activeText",
+      "background": "active",
+      "ratio": 13.14,
+      "normalTextMinimum": 4.5,
+      "pass": true
+    },
+    {
+      "theme": "light",
+      "foreground": "text",
+      "background": "background",
+      "ratio": 14.05,
+      "normalTextMinimum": 4.5,
+      "pass": true
+    },
+    {
+      "theme": "light",
+      "foreground": "text",
+      "background": "surface",
+      "ratio": 15.12,
+      "normalTextMinimum": 4.5,
+      "pass": true
+    },
+    {
+      "theme": "light",
+      "foreground": "muted",
+      "background": "surface",
+      "ratio": 5.83,
+      "normalTextMinimum": 4.5,
+      "pass": true
+    },
+    {
+      "theme": "light",
+      "foreground": "muted",
+      "background": "raised",
+      "ratio": 5,
+      "normalTextMinimum": 4.5,
+      "pass": true
+    },
+    {
+      "theme": "light",
+      "foreground": "muted",
+      "background": "active",
+      "ratio": 4.57,
+      "normalTextMinimum": 4.5,
+      "pass": true
+    },
+    {
+      "theme": "light",
+      "foreground": "actionText",
+      "background": "action",
+      "ratio": 9.59,
+      "normalTextMinimum": 4.5,
+      "pass": true
+    },
+    {
+      "theme": "light",
+      "foreground": "activeText",
+      "background": "active",
+      "ratio": 7.51,
+      "normalTextMinimum": 4.5,
+      "pass": true
+    }
+  ],
+  "typography": {
+    "family": "Inter",
+    "bundled": "InterVariable 4.1",
+    "source": "https://rsms.me/inter/",
+    "license": "SIL Open Font License 1.1"
+  },
+  "geometry": {
+    "largePanelRadius": 16,
+    "statRadius": 12,
+    "controlRadius": 8,
+    "productMarkRadius": 11
+  },
+  "notes": [
+    "Light values are a proposed theme, not values found in the current app.",
+    "Contrast checks cover listed token pairs only; these are not a full accessibility audit.",
+    "All dashboard data is illustrative. Admin client data is limited to codes and assignments."
+  ]
+}

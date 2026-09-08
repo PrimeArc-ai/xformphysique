@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     cors_origins: str = "http://127.0.0.1:5173,http://localhost:5173"
     demo_client_id: str = "cl_001"
     max_photo_bytes: int = 10 * 1024 * 1024
+    max_profile_photo_bytes: int = 2 * 1024 * 1024
     supabase_url: str | None = None
     supabase_publishable_key: str | None = None
     # Supabase secret keys are server-only and are required exclusively for
@@ -29,6 +30,16 @@ class Settings(BaseSettings):
     supabase_secret_key: str | None = None
     supabase_service_role_key: str | None = None
     client_invite_redirect_url: str = "http://127.0.0.1:5173"
+    checkin_reminder_job_token: str | None = None
+    twilio_account_sid: str | None = None
+    twilio_auth_token: str | None = None
+    twilio_whatsapp_from: str | None = None
+    twilio_whatsapp_reminder_template_sid: str | None = None
+    r2_account_id: str | None = None
+    r2_access_key_id: str | None = None
+    r2_secret_access_key: str | None = None
+    r2_bucket_name: str | None = None
+    r2_endpoint_url: str | None = None
 
     @property
     def supabase_enabled(self) -> bool:
@@ -43,6 +54,32 @@ class Settings(BaseSettings):
     @property
     def supabase_admin_enabled(self) -> bool:
         return bool(self.supabase_enabled and self.supabase_admin_key)
+
+    @property
+    def twilio_whatsapp_enabled(self) -> bool:
+        return bool(
+            self.twilio_account_sid
+            and self.twilio_auth_token
+            and self.twilio_whatsapp_from
+            and self.twilio_whatsapp_reminder_template_sid
+        )
+
+    @property
+    def r2_enabled(self) -> bool:
+        return bool(
+            self.r2_account_id
+            and self.r2_access_key_id
+            and self.r2_secret_access_key
+            and self.r2_bucket_name
+        )
+
+    @property
+    def r2_effective_endpoint_url(self) -> str | None:
+        if self.r2_endpoint_url:
+            return self.r2_endpoint_url.rstrip("/")
+        if self.r2_account_id:
+            return f"https://{self.r2_account_id}.r2.cloudflarestorage.com"
+        return None
 
     @property
     def allowed_origins(self) -> list[str]:

@@ -6,6 +6,7 @@ export function setAccessToken(token) {
 }
 
 function endpoint(path) {
+  if (path.startsWith('/api/')) return path
   return `${clientBase}${path}`
 }
 
@@ -22,9 +23,28 @@ async function request(path, options = {}) {
   const isJson = response.headers.get('content-type')?.includes('application/json')
   const payload = isJson ? await response.json() : null
   if (!response.ok) {
-    throw new Error(payload?.error?.message || `Request failed (${response.status})`)
+    const error = new Error(payload?.error?.message || `Request failed (${response.status})`)
+    error.status = response.status
+    throw error
   }
   return payload
+}
+
+async function optionalRequest(path, options = {}) {
+  try {
+    return await request(path, options)
+  } catch (error) {
+    if (error.status === 404) return null
+    throw error
+  }
+}
+
+async function privateObjectUrl(path, label = 'private photo') {
+  const response = await fetch(endpoint(path), {
+    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+  })
+  if (!response.ok) throw new Error(`Could not load this ${label}.`)
+  return URL.createObjectURL(await response.blob())
 }
 
 export function resourceUrl(path) {
@@ -50,6 +70,7 @@ export const clientApi = {
     body: JSON.stringify(checkIn),
   }),
   getPhotos: () => request('/progress-photos?limit=100'),
+  getPrivatePhotoUrl: (contentPath) => privateObjectUrl(contentPath, 'private progress photo'),
   uploadPhoto: (file, view, capturedOn) => {
     const form = new FormData()
     form.set('file', file)
@@ -57,7 +78,7 @@ export const clientApi = {
     form.set('captured_on', capturedOn)
     return request('/progress-photos', { method: 'POST', body: form })
   },
-  getNutritionPlan: (day) => request(`/nutrition/active-plan?date=${day}`),
+  getNutritionPlan: (day) => optionalRequest(`/nutrition/active-plan?date=${day}`),
   saveMealAdherence: (mealId, status, day) => request(`/nutrition/meals/${mealId}/adherence`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
@@ -68,7 +89,7 @@ export const clientApi = {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ meal_id: mealId }),
   }),
-  getWorkout: (day) => request(`/workout-sessions/today?date=${day}`),
+  getWorkout: (day) => optionalRequest(`/workout-sessions/today?date=${day}`),
   saveWorkout: (sessionId, payload) => request(`/workout-sessions/${sessionId}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
@@ -81,4 +102,11 @@ export const clientApi = {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(profile),
   }),
+  getProfilePhoto: () => request('/profile/photo'),
+  getPrivateProfilePhotoUrl: (contentPath) => privateObjectUrl(contentPath, 'private profile photo'),
+  uploadProfilePhoto: (file) => {
+    const form = new FormData()
+    form.set('file', file)
+    return request('/profile/photo', { method: 'POST', body: form })
+  },
 }

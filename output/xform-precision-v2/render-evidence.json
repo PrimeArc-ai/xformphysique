@@ -1,0 +1,108 @@
+[
+  {
+    "file": "precision-active-dashboard.png",
+    "pixels": [
+      3200,
+      2200
+    ],
+    "errors": [],
+    "external": [],
+    "missing": [],
+    "title": "XForm — Precision Active dashboard",
+    "width": 1600,
+    "height": 1100,
+    "fonts": [
+      {
+        "family": "Chakra Petch",
+        "weight": "600"
+      },
+      {
+        "family": "Chakra Petch",
+        "weight": "700"
+      },
+      {
+        "family": "IBM Plex Sans",
+        "weight": "400"
+      },
+      {
+        "family": "IBM Plex Sans",
+        "weight": "500"
+      },
+      {
+        "family": "IBM Plex Sans",
+        "weight": "600"
+      },
+      {
+        "family": "IBM Plex Mono",
+        "weight": "500"
+      }
+    ],
+    "tokens": {
+      "bg": "#0b1115",
+      "surface": "#121c22",
+      "raised": "#1a2830",
+      "border": "#2c404b",
+      "ink": "#edf5f8",
+      "muted": "#a2b4bd",
+      "accent": "#a9d6cd",
+      "action-ink": "#132522"
+    },
+    "clipped": [],
+    "escaped": []
+  },
+  {
+    "file": "precision-active-theme.png",
+    "pixels": [
+      3200,
+      2200
+    ],
+    "errors": [],
+    "external": [],
+    "missing": [],
+    "title": "XForm — Precision Active theme",
+    "width": 1600,
+    "height": 1100,
+    "fonts": [
+      {
+        "family": "Chakra Petch",
+        "weight": "600"
+      },
+      {
+        "family": "Chakra Petch",
+        "weight": "700"
+      },
+      {
+        "family": "IBM Plex Sans",
+        "weight": "400"
+      },
+      {
+        "family": "IBM Plex Sans",
+        "weight": "500"
+      },
+      {
+        "family": "IBM Plex Sans",
+        "weight": "600"
+      },
+      {
+        "family": "IBM Plex Mono",
+        "weight": "500"
+      },
+      {
+        "family": "Sora",
+        "weight": "400 700"
+      }
+    ],
+    "tokens": {
+      "bg": "#0b1115",
+      "surface": "#121c22",
+      "raised": "#1a2830",
+      "border": "#2c404b",
+      "ink": "#edf5f8",
+      "muted": "#a2b4bd",
+      "accent": "#a9d6cd",
+      "action-ink": "#132522"
+    },
+    "clipped": [],
+    "escaped": []
+  }
+]

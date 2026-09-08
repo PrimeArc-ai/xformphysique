@@ -1,0 +1,22 @@
+/* Same Precision composition across all three packs. Font choice is held fixed. */
+:root { --display: 'Sora'; }
+
+/* Filled actions and readable foreground accents have separate semantic tokens. */
+.primary, .xp, .day-marker {
+  background: var(--primary);
+  color: var(--button-ink);
+}
+.training-photo { background-color: var(--bg); }
+.training-photo::before {
+  background: linear-gradient(90deg, var(--photo-overlay), transparent 72%);
+}
+.signin-photo::after {
+  background: linear-gradient(90deg, var(--photo-overlay), transparent 75%);
+}
+.training-photo-copy .label { color: var(--photo-label); }
+
+/* Show current interface/display specimens rather than a historical font comparison. */
+.type-sample.old h2 { font-family: var(--body); font-weight: 500; }
+.type-sample.new h2 { font-family: var(--display); font-weight: 600; }
+.system-title h1 { font-weight: 600; }
+.signin-photo h2 { font-weight: 600; }

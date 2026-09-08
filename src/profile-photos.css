@@ -1,0 +1,62 @@
+.account-avatar { overflow: hidden; }
+.account-avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+.profile-photo-card {
+  display: grid;
+  grid-template-columns: 66px minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+  margin-bottom: 16px;
+  padding: 17px 20px;
+}
+
+.profile-photo-card > small {
+  grid-column: 2 / -1;
+  color: var(--text-muted);
+  font-size: 9px;
+}
+
+.profile-photo-preview {
+  display: grid;
+  width: 66px;
+  height: 66px;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  color: var(--accent);
+  background: var(--surface);
+  font-size: 20px;
+  font-weight: 850;
+}
+
+.profile-photo-preview img { width: 100%; height: 100%; object-fit: cover; }
+.profile-photo-card strong, .profile-photo-card span { display: block; }
+.profile-photo-card strong { margin: 4px 0 6px; color: var(--text); font-size: 13px; }
+.profile-photo-card > div:nth-child(2) > span { color: var(--text-muted); font-size: 10px; line-height: 1.5; }
+
+.profile-photo-upload {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 35px;
+  padding: 0 13px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  color: var(--accent);
+  background: var(--selected);
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.profile-photo-upload:hover { border-color: var(--accent); background: var(--selected); }
+.profile-photo-upload input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.coach-profile-photo-card { margin-bottom: 20px; }
+
+@media (max-width: 640px) {
+  .profile-photo-card { grid-template-columns: 58px 1fr; gap: 12px; padding: 15px; }
+  .profile-photo-preview { width: 58px; height: 58px; border-radius: var(--radius-panel); }
+  .profile-photo-upload { grid-column: 1 / -1; width: 100%; }
+  .profile-photo-card > small { grid-column: 1 / -1; }
+}

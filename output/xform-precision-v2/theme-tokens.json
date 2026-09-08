@@ -1,0 +1,49 @@
+{
+  "name": "Precision Active",
+  "revision": 2,
+  "scope": "Static proposal; not installed into the application",
+  "colour": {
+    "bg": "#0b1115",
+    "surface": "#121c22",
+    "raised": "#1a2830",
+    "border": "#2c404b",
+    "ink": "#edf5f8",
+    "muted": "#a2b4bd",
+    "accent": "#a9d6cd",
+    "action-ink": "#132522"
+  },
+  "typography": {
+    "display": {
+      "family": "Chakra Petch",
+      "weights": [
+        600,
+        700
+      ]
+    },
+    "body": {
+      "family": "IBM Plex Sans",
+      "weights": [
+        400,
+        500,
+        600
+      ]
+    },
+    "smallData": {
+      "family": "IBM Plex Mono",
+      "weights": [
+        500
+      ]
+    },
+    "comparisonOnly": {
+      "family": "Sora",
+      "weight": 500
+    }
+  },
+  "shape": {
+    "panelRadius": 6,
+    "controlRadius": 3,
+    "primaryChamfer": 10,
+    "markChamfer": 8
+  },
+  "composition": "Asymmetric progress and training columns; large primary metric; compact supporting metrics"
+}

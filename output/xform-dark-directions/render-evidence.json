@@ -1,0 +1,170 @@
+[
+  {
+    "file": "1-performance.png",
+    "pixels": [
+      3200,
+      2640
+    ],
+    "errors": [],
+    "nonlocal": [],
+    "missingFonts": [],
+    "title": "XForm Physique — Performance",
+    "fonts": [
+      {
+        "family": "Barlow Condensed",
+        "weight": "700"
+      },
+      {
+        "family": "Manrope",
+        "weight": "400 700"
+      }
+    ],
+    "background": "rgb(9, 10, 11)",
+    "text": "rgb(243, 246, 244)",
+    "accent": "#b8ff2b",
+    "muted": "#a3abae",
+    "selectedPortal": "Client",
+    "width": 1600,
+    "height": 1320,
+    "clipped": [],
+    "escape": [],
+    "mainLayout": [
+      {
+        "class": "workspace-title",
+        "height": 84.59375
+      },
+      {
+        "class": "stats",
+        "height": 109
+      },
+      {
+        "class": "content-grid",
+        "height": 267
+      },
+      {
+        "class": "training",
+        "height": 82
+      },
+      {
+        "class": "privacy",
+        "height": 12
+      }
+    ]
+  },
+  {
+    "file": "2-studio.png",
+    "pixels": [
+      3200,
+      2640
+    ],
+    "errors": [],
+    "nonlocal": [],
+    "missingFonts": [],
+    "title": "XForm Physique — Private Studio",
+    "fonts": [
+      {
+        "family": "Instrument Serif",
+        "weight": "400"
+      },
+      {
+        "family": "DM Sans",
+        "weight": "400 700"
+      }
+    ],
+    "background": "rgb(16, 15, 14)",
+    "text": "rgb(246, 240, 230)",
+    "accent": "#d7bc91",
+    "muted": "#b7aca0",
+    "selectedPortal": "Client",
+    "width": 1600,
+    "height": 1320,
+    "clipped": [],
+    "escape": [],
+    "mainLayout": [
+      {
+        "class": "workspace-title",
+        "height": 60.59375
+      },
+      {
+        "class": "stats",
+        "height": 82.890625
+      },
+      {
+        "class": "content-grid",
+        "height": 255
+      },
+      {
+        "class": "training",
+        "height": 66
+      },
+      {
+        "class": "privacy",
+        "height": 12
+      }
+    ]
+  },
+  {
+    "file": "3-precision.png",
+    "pixels": [
+      3200,
+      2640
+    ],
+    "errors": [],
+    "nonlocal": [],
+    "missingFonts": [],
+    "title": "XForm Physique — Precision",
+    "fonts": [
+      {
+        "family": "Sora",
+        "weight": "400 700"
+      },
+      {
+        "family": "IBM Plex Sans",
+        "weight": "400"
+      },
+      {
+        "family": "IBM Plex Sans",
+        "weight": "500"
+      },
+      {
+        "family": "IBM Plex Sans",
+        "weight": "600"
+      },
+      {
+        "family": "IBM Plex Mono",
+        "weight": "500"
+      }
+    ],
+    "background": "rgb(11, 17, 21)",
+    "text": "rgb(237, 245, 248)",
+    "accent": "#a9d6cd",
+    "muted": "#a2b4bd",
+    "selectedPortal": "Client",
+    "width": 1600,
+    "height": 1320,
+    "clipped": [],
+    "escape": [],
+    "mainLayout": [
+      {
+        "class": "workspace-title",
+        "height": 74.890625
+      },
+      {
+        "class": "stats",
+        "height": 104
+      },
+      {
+        "class": "content-grid",
+        "height": 267
+      },
+      {
+        "class": "training",
+        "height": 90
+      },
+      {
+        "class": "privacy",
+        "height": 12
+      }
+    ]
+  }
+]

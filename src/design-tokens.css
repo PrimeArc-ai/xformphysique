@@ -1,0 +1,40 @@
+/* XForm's approved base: Precision — Volt. Keep colour values in this file. */
+@font-face { font-family: 'Chakra Petch'; src: url('./assets/fonts/chakra-petch-1.woff2') format('woff2'); font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Chakra Petch'; src: url('./assets/fonts/chakra-petch-2.woff2') format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
+@font-face { font-family: 'IBM Plex Sans'; src: url('./assets/fonts/ibmplexsans-0.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'IBM Plex Sans'; src: url('./assets/fonts/ibmplexsans-1.woff2') format('woff2'); font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: 'IBM Plex Sans'; src: url('./assets/fonts/ibmplexsans-2.woff2') format('woff2'); font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: 'IBM Plex Mono'; src: url('./assets/fonts/ibmplexmono-0.woff2') format('woff2'); font-weight: 500; font-style: normal; font-display: swap; }
+
+:root {
+  color-scheme: dark;
+  --font-display: 'Chakra Petch', sans-serif;
+  --font-body: 'IBM Plex Sans', sans-serif;
+  --font-data: 'IBM Plex Mono', monospace;
+  --bg: #090a0b;
+  --surface: #141719;
+  --surface-raised: #1d2123;
+  --surface-hover: #282e30;
+  --border: #343a3d;
+  --border-strong: #596267;
+  --text: #f5f7f4;
+  --text-muted: #abb3ad;
+  --accent: #c7f542;
+  --accent-hover: #d7ff63;
+  --action-ink: #11180a;
+  --selected: #242e17;
+  --success: #a8d5af;
+  --success-soft: #182a1f;
+  --success-border: #355140;
+  --warning: #f1c27d;
+  --warning-soft: #2c2115;
+  --warning-border: #72532e;
+  --danger: #f0aaa7;
+  --danger-soft: #321d20;
+  --danger-border: #805053;
+  --radius-panel: 6px;
+  --radius-control: 3px;
+  --backdrop: #090a0bd9;
+  --shadow: #00000066;
+  --accent-rgb: 199, 245, 66;
+}

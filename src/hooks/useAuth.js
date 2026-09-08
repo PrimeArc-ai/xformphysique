@@ -1,17 +1,33 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase, supabaseConfigured } from '../lib/supabase'
 
-async function getWorkspace(accessToken) {
-  const response = await fetch('/api/v1/auth/me', {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  })
-  const payload = await response.json()
-  if (!response.ok) throw new Error(payload?.error?.message || 'Unable to load your XForm workspace.')
+async function getWorkspace(accessToken, portal) {
+  let response
+  try {
+    response = await fetch(`/api/v1/auth/me${portal ? `?portal=${encodeURIComponent(portal)}` : ''}`, {
+      headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
+    })
+  } catch {
+    throw new Error('Unable to reach the XForm server. Check your connection and try again.')
+  }
+  // A stopped backend can produce an empty or HTML proxy response, not API JSON.
+  const payload = await response.json().catch(() => null)
+  if (!response.ok) {
+    const message = typeof payload?.error?.message === 'string' ? payload.error.message : null
+    throw new Error(message || (response.status >= 500
+      ? 'XForm server is temporarily unavailable. Please try signing in again shortly.'
+      : 'Unable to load your XForm workspace. Please try signing in again.'))
+  }
+  if (!payload?.id || !['client', 'coach', 'admin'].includes(payload.role)) {
+    throw new Error('XForm returned an invalid response. Please try signing in again.')
+  }
   return payload
 }
 
 export default function useAuth() {
   const [state, setState] = useState({ loading: true, session: null, workspace: null, error: '' })
+  const signingIn = useRef(false)
+  const generation = useRef(0)
 
   const loadWorkspace = useCallback(async (session) => {
     if (!session) return null
@@ -26,11 +42,13 @@ export default function useAuth() {
 
     let active = true
     const hydrate = async (session) => {
+      if (signingIn.current) return
+      const current = ++generation.current
       try {
         const workspace = await loadWorkspace(session)
-        if (active) setState({ loading: false, session, workspace, error: '' })
+        if (active && current === generation.current) setState({ loading: false, session, workspace, error: '' })
       } catch (error) {
-        if (active) setState({ loading: false, session, workspace: null, error: error.message })
+        if (active && current === generation.current) setState({ loading: false, session, workspace: null, error: error.message })
       }
     }
 
@@ -41,16 +59,27 @@ export default function useAuth() {
     return () => { active = false; listener.subscription.unsubscribe() }
   }, [loadWorkspace])
 
-  const signIn = useCallback(async ({ email, password }) => {
+  const signIn = useCallback(async ({ email, password, portal }) => {
     if (!supabase) throw new Error('Supabase authentication is not configured.')
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) throw error
-    const workspace = await loadWorkspace(data.session)
-    setState({ loading: false, session: data.session, workspace, error: '' })
-    return workspace
-  }, [loadWorkspace])
+    signingIn.current = true
+    ++generation.current // Invalidate in-flight auth listener hydration; no wrong-portal flash.
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+      if (error) throw error
+      const workspace = await getWorkspace(data.session.access_token, portal)
+      setState({ loading: false, session: data.session, workspace, error: '' })
+      return workspace
+    } catch (error) {
+      await supabase.auth.signOut({ scope: 'local' })
+      setState({ loading: false, session: null, workspace: null, error: error.message })
+      throw error
+    } finally {
+      signingIn.current = false
+    }
+  }, [])
 
   const signOut = useCallback(async () => {
+    ++generation.current
     if (supabase) await supabase.auth.signOut()
     setState({ loading: false, session: null, workspace: null, error: '' })
   }, [])

@@ -1,0 +1,104 @@
+[
+  {
+    "file": "precision-volt-dashboard.png",
+    "pixels": [
+      3200,
+      2200
+    ],
+    "errors": [],
+    "external": [],
+    "missing": [],
+    "title": "XForm — Precision Volt dashboard",
+    "width": 1600,
+    "height": 1100,
+    "fonts": [
+      {
+        "family": "Chakra Petch",
+        "weight": "600"
+      },
+      {
+        "family": "Chakra Petch",
+        "weight": "700"
+      },
+      {
+        "family": "IBM Plex Sans",
+        "weight": "400"
+      },
+      {
+        "family": "IBM Plex Sans",
+        "weight": "500"
+      },
+      {
+        "family": "IBM Plex Sans",
+        "weight": "600"
+      },
+      {
+        "family": "IBM Plex Mono",
+        "weight": "500"
+      }
+    ],
+    "tokens": {
+      "bg": "#090a0b",
+      "surface": "#141719",
+      "raised": "#1d2123",
+      "border": "#343a3d",
+      "ink": "#f5f7f4",
+      "muted": "#abb3ad",
+      "accent": "#c7f542",
+      "action-ink": "#11180a"
+    },
+    "clipped": [],
+    "escaped": []
+  },
+  {
+    "file": "precision-volt-theme.png",
+    "pixels": [
+      3200,
+      2200
+    ],
+    "errors": [],
+    "external": [],
+    "missing": [],
+    "title": "XForm — Precision Volt theme",
+    "width": 1600,
+    "height": 1100,
+    "fonts": [
+      {
+        "family": "Chakra Petch",
+        "weight": "600"
+      },
+      {
+        "family": "Chakra Petch",
+        "weight": "700"
+      },
+      {
+        "family": "IBM Plex Sans",
+        "weight": "400"
+      },
+      {
+        "family": "IBM Plex Sans",
+        "weight": "500"
+      },
+      {
+        "family": "IBM Plex Sans",
+        "weight": "600"
+      },
+      {
+        "family": "IBM Plex Mono",
+        "weight": "500"
+      }
+    ],
+    "tokens": {
+      "bg": "#090a0b",
+      "surface": "#141719",
+      "raised": "#1d2123",
+      "border": "#343a3d",
+      "ink": "#f5f7f4",
+      "muted": "#abb3ad",
+      "accent": "#c7f542",
+      "action-ink": "#11180a"
+    },
+    "clipped": [],
+    "escaped": []
+  }
+]

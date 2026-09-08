@@ -1,0 +1,17 @@
+[
+  {
+    "cssUrl": "https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&display=block",
+    "url": "https://fonts.gstatic.com/s/chakrapetch/v13/cIflMapbsEk7TDLdtEz1BwkebIl1R5_F.woff2",
+    "path": "assets/chakra-petch-0.woff2"
+  },
+  {
+    "cssUrl": "https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&display=block",
+    "url": "https://fonts.gstatic.com/s/chakrapetch/v13/cIflMapbsEk7TDLdtEz1BwkeQI51R5_F.woff2",
+    "path": "assets/chakra-petch-1.woff2"
+  },
+  {
+    "cssUrl": "https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&display=block",
+    "url": "https://fonts.gstatic.com/s/chakrapetch/v13/cIflMapbsEk7TDLdtEz1BwkeJI91R5_F.woff2",
+    "path": "assets/chakra-petch-2.woff2"
+  }
+]

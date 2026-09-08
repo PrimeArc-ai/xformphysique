@@ -1,0 +1,302 @@
+[
+  {
+    "file": "01-electric-blue-dashboard.png",
+    "pixels": [
+      3200,
+      2200
+    ],
+    "errors": [],
+    "external": [],
+    "failed": [],
+    "missing": [],
+    "sameGeometryAndTypographyAcrossPalettes": true,
+    "width": 1600,
+    "height": 1100,
+    "fonts": [
+      {
+        "family": "IBM Plex Sans",
+        "weight": "400"
+      },
+      {
+        "family": "IBM Plex Sans",
+        "weight": "500"
+      },
+      {
+        "family": "IBM Plex Sans",
+        "weight": "600"
+      },
+      {
+        "family": "IBM Plex Mono",
+        "weight": "500"
+      },
+      {
+        "family": "Sora",
+        "weight": "400 700"
+      }
+    ],
+    "tokens": {
+      "bg": "#090E18",
+      "surface": "#111D2F",
+      "raised": "#192942",
+      "border": "#31425D",
+      "ink": "#F4F7FF",
+      "muted": "#ACBAD0",
+      "accent": "#82ABFF",
+      "primary": "#3667E8",
+      "button-ink": "#FFFFFF",
+      "selected": "#1C3154"
+    },
+    "clipped": [],
+    "escaped": []
+  },
+  {
+    "file": "01-electric-blue-theme.png",
+    "pixels": [
+      3200,
+      2200
+    ],
+    "errors": [],
+    "external": [],
+    "failed": [],
+    "missing": [],
+    "sameGeometryAndTypographyAcrossPalettes": true,
+    "width": 1600,
+    "height": 1100,
+    "fonts": [
+      {
+        "family": "IBM Plex Sans",
+        "weight": "400"
+      },
+      {
+        "family": "IBM Plex Sans",
+        "weight": "500"
+      },
+      {
+        "family": "IBM Plex Sans",
+        "weight": "600"
+      },
+      {
+        "family": "IBM Plex Mono",
+        "weight": "500"
+      },
+      {
+        "family": "Sora",
+        "weight": "400 700"
+      }
+    ],
+    "tokens": {
+      "bg": "#090E18",
+      "surface": "#111D2F",
+      "raised": "#192942",
+      "border": "#31425D",
+      "ink": "#F4F7FF",
+      "muted": "#ACBAD0",
+      "accent": "#82ABFF",
+      "primary": "#3667E8",
+      "button-ink": "#FFFFFF",
+      "selected": "#1C3154"
+    },
+    "clipped": [],
+    "escaped": []
+  },
+  {
+    "file": "02-signal-coral-dashboard.png",
+    "pixels": [
+      3200,
+      2200
+    ],
+    "errors": [],
+    "external": [],
+    "failed": [],
+    "missing": [],
+    "sameGeometryAndTypographyAcrossPalettes": true,
+    "width": 1600,
+    "height": 1100,
+    "fonts": [
+      {
+        "family": "IBM Plex Sans",
+        "weight": "400"
+      },
+      {
+        "family": "IBM Plex Sans",
+        "weight": "500"
+      },
+      {
+        "family": "IBM Plex Sans",
+        "weight": "600"
+      },
+      {
+        "family": "IBM Plex Mono",
+        "weight": "500"
+      },
+      {
+        "family": "Sora",
+        "weight": "400 700"
+      }
+    ],
+    "tokens": {
+      "bg": "#130E10",
+      "surface": "#21191D",
+      "raised": "#2D2328",
+      "border": "#49343D",
+      "ink": "#FFF5F3",
+      "muted": "#C5ADAF",
+      "accent": "#FF8D80",
+      "primary": "#FF6E5B",
+      "button-ink": "#29110D",
+      "selected": "#452727"
+    },
+    "clipped": [],
+    "escaped": []
+  },
+  {
+    "file": "02-signal-coral-theme.png",
+    "pixels": [
+      3200,
+      2200
+    ],
+    "errors": [],
+    "external": [],
+    "failed": [],
+    "missing": [],
+    "sameGeometryAndTypographyAcrossPalettes": true,
+    "width": 1600,
+    "height": 1100,
+    "fonts": [
+      {
+        "family": "IBM Plex Sans",
+        "weight": "400"
+      },
+      {
+        "family": "IBM Plex Sans",
+        "weight": "500"
+      },
+      {
+        "family": "IBM Plex Sans",
+        "weight": "600"
+      },
+      {
+        "family": "IBM Plex Mono",
+        "weight": "500"
+      },
+      {
+        "family": "Sora",
+        "weight": "400 700"
+      }
+    ],
+    "tokens": {
+      "bg": "#130E10",
+      "surface": "#21191D",
+      "raised": "#2D2328",
+      "border": "#49343D",
+      "ink": "#FFF5F3",
+      "muted": "#C5ADAF",
+      "accent": "#FF8D80",
+      "primary": "#FF6E5B",
+      "button-ink": "#29110D",
+      "selected": "#452727"
+    },
+    "clipped": [],
+    "escaped": []
+  },
+  {
+    "file": "03-ultraviolet-dashboard.png",
+    "pixels": [
+      3200,
+      2200
+    ],
+    "errors": [],
+    "external": [],
+    "failed": [],
+    "missing": [],
+    "sameGeometryAndTypographyAcrossPalettes": true,
+    "width": 1600,
+    "height": 1100,
+    "fonts": [
+      {
+        "family": "IBM Plex Sans",
+        "weight": "400"
+      },
+      {
+        "family": "IBM Plex Sans",
+        "weight": "500"
+      },
+      {
+        "family": "IBM Plex Sans",
+        "weight": "600"
+      },
+      {
+        "family": "IBM Plex Mono",
+        "weight": "500"
+      },
+      {
+        "family": "Sora",
+        "weight": "400 700"
+      }
+    ],
+    "tokens": {
+      "bg": "#100D19",
+      "surface": "#1C172A",
+      "raised": "#2A233C",
+      "border": "#44365C",
+      "ink": "#F8F4FF",
+      "muted": "#BBB0CD",
+      "accent": "#C49AFF",
+      "primary": "#8D52F0",
+      "button-ink": "#FFFFFF",
+      "selected": "#37244F"
+    },
+    "clipped": [],
+    "escaped": []
+  },
+  {
+    "file": "03-ultraviolet-theme.png",
+    "pixels": [
+      3200,
+      2200
+    ],
+    "errors": [],
+    "external": [],
+    "failed": [],
+    "missing": [],
+    "sameGeometryAndTypographyAcrossPalettes": true,
+    "width": 1600,
+    "height": 1100,
+    "fonts": [
+      {
+        "family": "IBM Plex Sans",
+        "weight": "400"
+      },
+      {
+        "family": "IBM Plex Sans",
+        "weight": "500"
+      },
+      {
+        "family": "IBM Plex Sans",
+        "weight": "600"
+      },
+      {
+        "family": "IBM Plex Mono",
+        "weight": "500"
+      },
+      {
+        "family": "Sora",
+        "weight": "400 700"
+      }
+    ],
+    "tokens": {
+      "bg": "#100D19",
+      "surface": "#1C172A",
+      "raised": "#2A233C",
+      "border": "#44365C",
+      "ink": "#F8F4FF",
+      "muted": "#BBB0CD",
+      "accent": "#C49AFF",
+      "primary": "#8D52F0",
+      "button-ink": "#FFFFFF",
+      "selected": "#37244F"
+    },
+    "clipped": [],
+    "escaped": []
+  }
+]

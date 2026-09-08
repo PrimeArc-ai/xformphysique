@@ -1,0 +1,228 @@
+[
+  {
+    "file": "dark-admin.png",
+    "pixels": [
+      3200,
+      2640
+    ],
+    "errors": [],
+    "title": "XForm Physique — Dark Admin",
+    "fontLoaded": true,
+    "width": 1600,
+    "height": 1320,
+    "selectedPortal": "Admin",
+    "ink": "rgb(244, 246, 241)",
+    "background": "rgb(9, 11, 13)",
+    "clipped": [],
+    "escapedBoard": [],
+    "mainLayout": [
+      {
+        "class": "workspace-header",
+        "height": 67.6875
+      },
+      {
+        "class": "stats",
+        "height": 95
+      },
+      {
+        "class": "admin-columns",
+        "height": 429.59375
+      },
+      {
+        "class": "boundary-note",
+        "height": 36
+      }
+    ]
+  },
+  {
+    "file": "dark-coach.png",
+    "pixels": [
+      3200,
+      2640
+    ],
+    "errors": [],
+    "title": "XForm Physique — Dark Coach",
+    "fontLoaded": true,
+    "width": 1600,
+    "height": 1320,
+    "selectedPortal": "Coach",
+    "ink": "rgb(244, 246, 241)",
+    "background": "rgb(9, 11, 13)",
+    "clipped": [],
+    "escapedBoard": [],
+    "mainLayout": [
+      {
+        "class": "workspace-header",
+        "height": 67.6875
+      },
+      {
+        "class": "stats",
+        "height": 95
+      },
+      {
+        "class": "coach-columns",
+        "height": 343.546875
+      },
+      {
+        "class": "quick-actions",
+        "height": 58
+      },
+      {
+        "class": "coach-scope",
+        "height": 12
+      }
+    ]
+  },
+  {
+    "file": "dark-client.png",
+    "pixels": [
+      3200,
+      2640
+    ],
+    "errors": [],
+    "title": "XForm Physique — Dark Client",
+    "fontLoaded": true,
+    "width": 1600,
+    "height": 1320,
+    "selectedPortal": "Client",
+    "ink": "rgb(244, 246, 241)",
+    "background": "rgb(9, 11, 13)",
+    "clipped": [],
+    "escapedBoard": [],
+    "mainLayout": [
+      {
+        "class": "workspace-header",
+        "height": 67.6875
+      },
+      {
+        "class": "client-hero",
+        "height": 122
+      },
+      {
+        "class": "client-columns",
+        "height": 244
+      },
+      {
+        "class": "training-panel",
+        "height": 76
+      },
+      {
+        "class": "coach-scope",
+        "height": 12
+      }
+    ]
+  },
+  {
+    "file": "light-admin.png",
+    "pixels": [
+      3200,
+      2640
+    ],
+    "errors": [],
+    "title": "XForm Physique — Light Admin",
+    "fontLoaded": true,
+    "width": 1600,
+    "height": 1320,
+    "selectedPortal": "Admin",
+    "ink": "rgb(28, 41, 33)",
+    "background": "rgb(246, 247, 242)",
+    "clipped": [],
+    "escapedBoard": [],
+    "mainLayout": [
+      {
+        "class": "workspace-header",
+        "height": 67.6875
+      },
+      {
+        "class": "stats",
+        "height": 95
+      },
+      {
+        "class": "admin-columns",
+        "height": 429.59375
+      },
+      {
+        "class": "boundary-note",
+        "height": 36
+      }
+    ]
+  },
+  {
+    "file": "light-coach.png",
+    "pixels": [
+      3200,
+      2640
+    ],
+    "errors": [],
+    "title": "XForm Physique — Light Coach",
+    "fontLoaded": true,
+    "width": 1600,
+    "height": 1320,
+    "selectedPortal": "Coach",
+    "ink": "rgb(28, 41, 33)",
+    "background": "rgb(246, 247, 242)",
+    "clipped": [],
+    "escapedBoard": [],
+    "mainLayout": [
+      {
+        "class": "workspace-header",
+        "height": 67.6875
+      },
+      {
+        "class": "stats",
+        "height": 95
+      },
+      {
+        "class": "coach-columns",
+        "height": 343.546875
+      },
+      {
+        "class": "quick-actions",
+        "height": 58
+      },
+      {
+        "class": "coach-scope",
+        "height": 12
+      }
+    ]
+  },
+  {
+    "file": "light-client.png",
+    "pixels": [
+      3200,
+      2640
+    ],
+    "errors": [],
+    "title": "XForm Physique — Light Client",
+    "fontLoaded": true,
+    "width": 1600,
+    "height": 1320,
+    "selectedPortal": "Client",
+    "ink": "rgb(28, 41, 33)",
+    "background": "rgb(246, 247, 242)",
+    "clipped": [],
+    "escapedBoard": [],
+    "mainLayout": [
+      {
+        "class": "workspace-header",
+        "height": 67.6875
+      },
+      {
+        "class": "client-hero",
+        "height": 122
+      },
+      {
+        "class": "client-columns",
+        "height": 244
+      },
+      {
+        "class": "training-panel",
+        "height": 76
+      },
+      {
+        "class": "coach-scope",
+        "height": 12
+      }
+    ]
+  }
+]

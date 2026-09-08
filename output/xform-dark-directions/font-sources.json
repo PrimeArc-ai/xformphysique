@@ -1,0 +1,56 @@
+[
+  {
+    "family": "Barlow Condensed",
+    "cssUrl": "https://fonts.googleapis.com/css2?family=Barlow%20Condensed:wght@700&display=block",
+    "fontUrl": "https://fonts.gstatic.com/s/barlowcondensed/v13/HTxwL3I-JCGChYJ8VI-L6OO_au7B46r2z3bWuQ.woff2",
+    "path": "assets/barlowcondensed-0.woff2"
+  },
+  {
+    "family": "Manrope",
+    "cssUrl": "https://fonts.googleapis.com/css2?family=Manrope:wght@400..700&display=block",
+    "fontUrl": "https://fonts.gstatic.com/s/manrope/v20/xn7gYHE41ni1AdIRggexSg.woff2",
+    "path": "assets/manrope-0.woff2"
+  },
+  {
+    "family": "Instrument Serif",
+    "cssUrl": "https://fonts.googleapis.com/css2?family=Instrument%20Serif&display=block",
+    "fontUrl": "https://fonts.gstatic.com/s/instrumentserif/v5/jizBRFtNs2ka5fXjeivQ4LroWlx-6zUTjg.woff2",
+    "path": "assets/instrumentserif-0.woff2"
+  },
+  {
+    "family": "DM Sans",
+    "cssUrl": "https://fonts.googleapis.com/css2?family=DM%20Sans:wght@400..700&display=block",
+    "fontUrl": "https://fonts.gstatic.com/s/dmsans/v17/rP2Yp2ywxg089UriI5-g4vlH9VoD8Cmcqbu0-K4.woff2",
+    "path": "assets/dmsans-0.woff2"
+  },
+  {
+    "family": "Sora",
+    "cssUrl": "https://fonts.googleapis.com/css2?family=Sora:wght@400..700&display=block",
+    "fontUrl": "https://fonts.gstatic.com/s/sora/v17/xMQ9uFFYT72X5wkB_18qmnndmSdSnh2BAfO5mnuyOo1lfiQwV6-x.woff2",
+    "path": "assets/sora-0.woff2"
+  },
+  {
+    "family": "IBM Plex Sans",
+    "cssUrl": "https://fonts.googleapis.com/css2?family=IBM%20Plex%20Sans:wght@400;500;600&display=block",
+    "fontUrl": "https://fonts.gstatic.com/s/ibmplexsans/v23/zYXzKVElMYYaJe8bpLHnCwDKr932-G7dytD-Dmu1syxeKYY.woff2",
+    "path": "assets/ibmplexsans-0.woff2"
+  },
+  {
+    "family": "IBM Plex Sans",
+    "cssUrl": "https://fonts.googleapis.com/css2?family=IBM%20Plex%20Sans:wght@400;500;600&display=block",
+    "fontUrl": "https://fonts.gstatic.com/s/ibmplexsans/v23/zYXzKVElMYYaJe8bpLHnCwDKr932-G7dytD-Dmu1syxeKYY.woff2",
+    "path": "assets/ibmplexsans-1.woff2"
+  },
+  {
+    "family": "IBM Plex Sans",
+    "cssUrl": "https://fonts.googleapis.com/css2?family=IBM%20Plex%20Sans:wght@400;500;600&display=block",
+    "fontUrl": "https://fonts.gstatic.com/s/ibmplexsans/v23/zYXzKVElMYYaJe8bpLHnCwDKr932-G7dytD-Dmu1syxeKYY.woff2",
+    "path": "assets/ibmplexsans-2.woff2"
+  },
+  {
+    "family": "IBM Plex Mono",
+    "cssUrl": "https://fonts.googleapis.com/css2?family=IBM%20Plex%20Mono:wght@500&display=block",
+    "fontUrl": "https://fonts.gstatic.com/s/ibmplexmono/v20/-F6qfjptAgt5VM-kVkqdyU8n3twJwlBFgg.woff2",
+    "path": "assets/ibmplexmono-0.woff2"
+  }
+]

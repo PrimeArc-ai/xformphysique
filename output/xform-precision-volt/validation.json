@@ -1,0 +1,73 @@
+{
+  "equivalence": [
+    {
+      "view": "dashboard",
+      "scope": ".app-frame",
+      "elements": 213,
+      "geometryTypographyShapesAndContentIdentical": true
+    },
+    {
+      "view": "theme",
+      "scope": ".signin",
+      "elements": 38,
+      "geometryTypographyShapesAndContentIdentical": true
+    }
+  ],
+  "preservedSources": [
+    {
+      "file": "theme.css",
+      "sha256": "c69ecf1ec72d4fce7c7ad295ef6da71be758ba460052cf2fdea2c11f4c56a9d0"
+    },
+    {
+      "file": "preview.js",
+      "sha256": "9c834b3fc6c88b133b75b2b32db98fcf2dfa39c1d4723b6aea3ea2be227ad884"
+    },
+    {
+      "file": "chakra.css",
+      "sha256": "da1d9a719514a63ed694013c019f804aca97e4f5917eaddc9ef45fcf3c06e532"
+    },
+    {
+      "file": "assets/strength-editorial.png",
+      "sha256": "3bc1ea4b8af61263547cfb342369ffa58696b50d0f0a54a3fff4b9afdd1ecccd"
+    }
+  ],
+  "contrast": [
+    {
+      "foreground": "ink",
+      "background": "bg",
+      "ratio": 18.39,
+      "passesNormalTextAA": true
+    },
+    {
+      "foreground": "ink",
+      "background": "surface",
+      "ratio": 16.71,
+      "passesNormalTextAA": true
+    },
+    {
+      "foreground": "muted",
+      "background": "surface",
+      "ratio": 8.39,
+      "passesNormalTextAA": true
+    },
+    {
+      "foreground": "muted",
+      "background": "raised",
+      "ratio": 7.56,
+      "passesNormalTextAA": true
+    },
+    {
+      "foreground": "accent",
+      "background": "surface",
+      "ratio": 14.21,
+      "passesNormalTextAA": true
+    },
+    {
+      "foreground": "action-ink",
+      "background": "accent",
+      "ratio": 14.3,
+      "passesNormalTextAA": true
+    }
+  ],
+  "scope": "Static desktop design previews; not a complete accessibility audit"
+}

@@ -1,8 +1,13 @@
 const apiBase = (import.meta.env.VITE_API_BASE_URL || '/api/v1/client').replace(/\/client$/, '')
 
+function endpoint(path) {
+  if (path.startsWith('/api/')) return path
+  return `${apiBase}${path}`
+}
+
 async function request(path, accessToken, options = {}) {
   const { headers, ...requestOptions } = options
-  const response = await fetch(`${apiBase}${path}`, {
+  const response = await fetch(endpoint(path), {
     ...requestOptions,
     headers: {
       Accept: 'application/json',
@@ -16,10 +21,33 @@ async function request(path, accessToken, options = {}) {
   return payload
 }
 
+async function privateObjectUrl(path, accessToken) {
+  const response = await fetch(endpoint(path), {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+  if (!response.ok) throw new Error('Could not load this protected photo.')
+  return URL.createObjectURL(await response.blob())
+}
+
 export const coachApi = {
+  listClients: (accessToken) => request('/coach/clients', accessToken),
+  getClientReview: (clientId, accessToken) => request(`/coach/clients/${clientId}/review`, accessToken),
+  getPrivatePhotoUrl: (contentPath, accessToken) => privateObjectUrl(contentPath, accessToken),
+  updateClientCoachingContext: (clientId, payload, accessToken) => request(`/coach/clients/${clientId}/coaching-context`, accessToken, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }),
   createClient: (payload, accessToken) => request('/coach/clients', accessToken, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   }),
+  getProfilePhoto: (accessToken) => request('/coach/profile/photo', accessToken),
+  getPrivateProfilePhotoUrl: (contentPath, accessToken) => privateObjectUrl(contentPath, accessToken),
+  uploadProfilePhoto: (file, accessToken) => {
+    const form = new FormData()
+    form.set('file', file)
+    return request('/coach/profile/photo', accessToken, { method: 'POST', body: form })
+  },
 }

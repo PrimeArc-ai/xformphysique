@@ -11,7 +11,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.datastructures import MutableHeaders
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.api.v1.router import router as v1_router
+from app.api.v1.auth import router as auth_router
+from app.api.v1.admin import router as admin_router
+from app.api.v1.client import router as client_router
+from app.api.v1.coach import router as coach_router
+from app.api.v1.internal import router as internal_router
 from app.core.config import get_settings
 from app.core.errors import APIError
 from app.db.base import Base
@@ -68,7 +72,7 @@ async def lifespan(_: FastAPI):
 app = FastAPI(
     title="XForm Coaching OS API",
     version="0.1.0",
-    description="Client dashboard API contract. Authentication will replace temporary development identity.",
+    description="Authenticated client, coach and privacy-limited admin workspaces.",
     lifespan=lifespan,
 )
 app.add_middleware(
@@ -132,4 +136,9 @@ async def unhandled_error_handler(request: Request, exc: Exception):
     )
 
 
-app.include_router(v1_router)
+API_V1_PREFIX = "/api/v1"
+app.include_router(auth_router, prefix=API_V1_PREFIX)
+app.include_router(admin_router, prefix=API_V1_PREFIX)
+app.include_router(coach_router, prefix=API_V1_PREFIX)
+app.include_router(client_router, prefix=API_V1_PREFIX)
+app.include_router(internal_router, prefix=API_V1_PREFIX)

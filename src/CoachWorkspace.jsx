@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { coachApi } from './api/coach'
 
 const coachNavigation = [
@@ -42,7 +42,39 @@ const clientPreviews = {
 }
 
 function getClientPreview(client) {
-  return clientPreviews[client.id] ?? { average: '—', tracking: '0%', start: '—', change: '—', points: null, targetWeight: 'Set target', targetWaist: 'Set target', targetProgress: '0%', waistProgress: '0%', targetDate: 'Not set', energy: '—', sleep: '—', sentiment: 'No check-in', adherence: '—', whatWentWell: 'No check-in in this local preview.', context: 'Complete client setup before interpreting progress.', restrictions: 'Not recorded', consideration: 'Not recorded', alert: 'No entries recorded.', alertDetail: 'Add first client body signal.', program: 'No workout plan', programWeek: 'Not assigned', sessions: '—', nutrition: '—', protein: '—', mealPlan: 'No nutrition plan', meals: [] }
+  return clientPreviews[client?.id] ?? { average: '—', tracking: '0%', start: '—', change: '—', points: null, targetWeight: 'Set target', targetWaist: 'Set target', targetProgress: '0%', waistProgress: '0%', targetDate: 'Not set', energy: '—', sleep: '—', sentiment: 'No check-in', adherence: '—', whatWentWell: 'No check-in in this local preview.', context: 'Complete client setup before interpreting progress.', restrictions: 'Not recorded', consideration: 'Not recorded', alert: 'No entries recorded.', alertDetail: 'Add first client body signal.', program: 'No workout plan', programWeek: 'Not assigned', sessions: '—', nutrition: '—', protein: '—', mealPlan: 'No nutrition plan', meals: [] }
+}
+
+function formatDate(value) {
+  if (!value) return '—'
+  return new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(`${value}T00:00:00`))
+}
+
+function relativeDate(value) {
+  if (!value) return 'No entry'
+  const today = new Date()
+  const entry = new Date(`${value}T00:00:00`)
+  const days = Math.round((new Date(today.getFullYear(), today.getMonth(), today.getDate()) - entry) / 86400000)
+  if (days === 0) return 'Today'
+  if (days === 1) return 'Yesterday'
+  return `${Math.max(days, 0)} days ago`
+}
+
+function apiClientToWorkspaceClient(item) {
+  const name = item.full_name || 'Client'
+  return {
+    id: item.id,
+    code: item.client_code,
+    name,
+    initials: name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase(),
+    weight: item.latest_weight_kg == null ? '—' : `${item.latest_weight_kg} kg`,
+    lastEntry: relativeDate(item.latest_entry_date),
+    checkIn: item.latest_checkin_period_start ? 'Submitted' : 'Due',
+    status: item.needs_attention ? 'Needs attention' : 'On track',
+    goal: item.primary_goal.replaceAll('_', ' '),
+    checkInDay: item.check_in_day[0].toUpperCase() + item.check_in_day.slice(1),
+    attention: item.needs_attention,
+  }
 }
 
 function CoachGlyph({ name }) {
@@ -61,7 +93,7 @@ function Status({ children, tone = '' }) {
 }
 
 function ClientSelect({ clientId, clients, onChange }) {
-  return <label className="coach-client-select">CLIENT<select value={clientId} onChange={(event) => onChange(event.target.value)}>{clients.map((client) => <option value={client.id} key={client.id}>{client.name} · {client.id}</option>)}</select></label>
+  return <label className="coach-client-select">CLIENT<select value={clientId} onChange={(event) => onChange(event.target.value)}>{clients.map((client) => <option value={client.id} key={client.id}>{client.name} · {client.code || client.id}</option>)}</select></label>
 }
 
 function CoachOverview({ clients, selectClient, navigate, onCreate }) {
@@ -183,9 +215,38 @@ function CoachLibraries({ notice }) {
   return <section className="coach-page"><CoachHeading eyebrow="COACH / SOURCE LIBRARIES" title="Libraries" copy="Source-of-truth food and exercise references for plans." action={<button className="coach-primary" onClick={() => notice('Library editing connects to backend storage later.')}><CoachGlyph name="plus" />Add item</button>} /><div className="coach-library-tools"><div className="coach-tab-switch">{['Food Library', 'Exercise Library'].map((item) => <button className={library === item ? 'selected' : ''} onClick={() => setLibrary(item)} key={item}>{item}</button>)}</div><label className="coach-search"><CoachGlyph name="search" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={library === 'Food Library' ? 'Search foods' : 'Search exercises'} /></label></div><section className="coach-library-list">{filtered.map(([name, group, detail]) => <article key={name}><span className="library-icon"><CoachGlyph name={library === 'Food Library' ? 'food' : 'exercise'} /></span><div><strong>{name}</strong><small>{group} · {detail}</small></div><Status tone="good">ACTIVE</Status><button onClick={() => notice(`${name} edit form is preview-only.`)}>Edit</button><button onClick={() => notice(`${name} disable action needs backend.`)}>Disable</button></article>)}</section>{!filtered.length && <div className="coach-empty"><CoachGlyph name="search" /><strong>No matching {library.toLowerCase()}</strong></div>}</section>
 }
 
-function CoachSettings({ notice }) {
+function CoachProfilePhoto({ account, profilePhoto, onUploadProfilePhoto }) {
+  const [notice, setNotice] = useState('')
+  const [uploading, setUploading] = useState(false)
+  const initials = (account?.full_name || 'Coach').split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()
+
+  const selectPhoto = async (event) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    setNotice('')
+    try {
+      await onUploadProfilePhoto(file)
+      setNotice('Profile photo saved privately.')
+    } catch (requestError) {
+      setNotice(requestError.message || 'Could not save profile photo.')
+    } finally {
+      setUploading(false)
+      event.target.value = ''
+    }
+  }
+
+  return <section className="panel profile-photo-card coach-profile-photo-card">
+    <div className="profile-photo-preview">{profilePhoto?.url ? <img src={profilePhoto.url} alt="Your profile" /> : <span>{initials}</span>}</div>
+    <div><p className="kicker">COACH PROFILE PHOTO</p><strong>{profilePhoto ? 'Current photo protected' : 'Add a profile photo'}</strong><span>One compact image for your authenticated coaching workspace.</span></div>
+    <label className="profile-photo-upload"><input type="file" accept="image/png,image/jpeg,image/webp" disabled={uploading} onChange={selectPhoto} /><span>{uploading ? 'Uploading…' : 'Upload photo'}</span></label>
+    <small aria-live="polite">{notice || 'JPEG, PNG or WebP · 2 MB max · securely optimized.'}</small>
+  </section>
+}
+
+function CoachSettings({ notice, account, profilePhoto, onUploadProfilePhoto }) {
   const [active, setActive] = useState('System setup')
-  return <section className="coach-page"><CoachHeading eyebrow="COACH / SYSTEM CONFIGURATION" title="Settings" copy="Measurement logic, targets, units and safe data operations." /><div className="coach-settings-layout"><nav>{['System setup', 'Data tools', 'Security'].map((item) => <button className={active === item ? 'selected' : ''} onClick={() => setActive(item)} key={item}>{item}</button>)}</nav><section className="panel">{active === 'System setup' && <><header><div><p className="kicker">TRACKING CONFIGURATION</p><span>Coach-wide defaults. Backend becomes source of truth.</span></div><Status tone="preview">LOCAL</Status></header><form className="coach-settings-form" onSubmit={(event) => { event.preventDefault(); notice('System settings saved in local preview.') }}><label>Weight unit<select defaultValue="Kilograms (kg)"><option>Kilograms (kg)</option><option>Pounds (lb)</option></select></label><label>Default check-in day<select defaultValue="Sunday"><option>Sunday</option><option>Wednesday</option><option>Friday</option></select></label><label>Missing weight threshold<input defaultValue="3 days" /></label><label>Measurement refresh threshold<input defaultValue="14 days" /></label><label className="wide-field">Enabled measurements<textarea rows="3" defaultValue="Weight, waist, hip, body fat percentage" /></label><label className="wide-field">Formula registry<textarea rows="3" defaultValue="BMI, fat mass, lean mass, rolling average, rate of change" /></label><footer><span>Formula calculations stay server-owned later.</span><button className="coach-primary">Save settings</button></footer></form></>}{active === 'Data tools' && <><header><div><p className="kicker">DATA TOOLS</p><span>CSV contract preview. No local file processing yet.</span></div></header><div className="coach-data-tools"><article><CoachGlyph name="upload" /><div><strong>Import clients</strong><span>Validate required fields, duplicate IDs and invalid values before commit.</span></div><button className="coach-primary" onClick={() => notice('CSV import validation needs backend endpoint.')}>Preview import</button></article><article><CoachGlyph name="export" /><div><strong>Export client data</strong><span>Generate controlled export by client and time range.</span></div><button className="coach-secondary" onClick={() => notice('Client export needs backend data access.')}>Prepare export</button></article></div></>}{active === 'Security' && <><header><div><p className="kicker">SECURITY BOUNDARY</p><span>Authentication and data isolation belong to backend.</span></div></header><div className="coach-security-list"><div><strong>Client ownership</strong><span>Server-enforced per coach/client relationship.</span></div><div><strong>Private notes</strong><span>Access-controlled and audited.</span></div><div><strong>Photos and health records</strong><span>Private object storage with consent and retention.</span></div></div></>}</section></div></section>
+  return <section className="coach-page"><CoachHeading eyebrow="COACH / SYSTEM CONFIGURATION" title="Settings" copy="Measurement logic, targets, units and safe data operations." /><CoachProfilePhoto account={account} profilePhoto={profilePhoto} onUploadProfilePhoto={onUploadProfilePhoto} /><div className="coach-settings-layout"><nav>{['System setup', 'Data tools', 'Security'].map((item) => <button className={active === item ? 'selected' : ''} onClick={() => setActive(item)} key={item}>{item}</button>)}</nav><section className="panel">{active === 'System setup' && <><header><div><p className="kicker">TRACKING CONFIGURATION</p><span>Coach-wide defaults. Backend becomes source of truth.</span></div><Status tone="preview">LOCAL</Status></header><form className="coach-settings-form" onSubmit={(event) => { event.preventDefault(); notice('System settings saved in local preview.') }}><label>Weight unit<select defaultValue="Kilograms (kg)"><option>Kilograms (kg)</option><option>Pounds (lb)</option></select></label><label>Default check-in day<select defaultValue="Sunday"><option>Sunday</option><option>Wednesday</option><option>Friday</option></select></label><label>Missing weight threshold<input defaultValue="3 days" /></label><label>Measurement refresh threshold<input defaultValue="14 days" /></label><label className="wide-field">Enabled measurements<textarea rows="3" defaultValue="Weight, waist, hip, body fat percentage" /></label><label className="wide-field">Formula registry<textarea rows="3" defaultValue="BMI, fat mass, rolling average, rate of change" /></label><footer><span>Formula calculations stay server-owned later.</span><button className="coach-primary">Save settings</button></footer></form></>}{active === 'Data tools' && <><header><div><p className="kicker">DATA TOOLS</p><span>CSV contract preview. No local file processing yet.</span></div></header><div className="coach-data-tools"><article><CoachGlyph name="upload" /><div><strong>Import clients</strong><span>Validate required fields, duplicate IDs and invalid values before commit.</span></div><button className="coach-primary" onClick={() => notice('CSV import validation needs backend endpoint.')}>Preview import</button></article><article><CoachGlyph name="export" /><div><strong>Export client data</strong><span>Generate controlled export by client and time range.</span></div><button className="coach-secondary" onClick={() => notice('Client export needs backend data access.')}>Prepare export</button></article></div></>}{active === 'Security' && <><header><div><p className="kicker">SECURITY BOUNDARY</p><span>Authentication and data isolation belong to backend.</span></div></header><div className="coach-security-list"><div><strong>Client ownership</strong><span>Server-enforced per coach/client relationship.</span></div><div><strong>Private notes</strong><span>Access-controlled and audited.</span></div><div><strong>Photos and health records</strong><span>Private object storage with consent and retention.</span></div></div></>}</section></div></section>
 }
 
 function CoachHealth() {
@@ -196,23 +257,164 @@ function CoachAudit() {
   return <section className="coach-page"><CoachHeading eyebrow="COACH / ACTIVITY RECORD" title="Audit Log" copy="Sensitive actions need backend-generated, immutable records." /><section className="coach-placeholder"><span><CoachGlyph name="file" /></span><h3>Audit trail waits for real events.</h3><p>Client updates, plan publication, note visibility and exports will appear here once API actions produce signed event records.</p><div><Status tone="preview">BACKEND REQUIRED</Status></div></section></section>
 }
 
+function CoachNoClient({ loading, onCreate }) {
+  return <section className="coach-page"><section className="coach-empty"><CoachGlyph name={loading ? 'trend' : 'clients'} /><strong>{loading ? 'Loading your authorized clients…' : 'No client workspace is available yet.'}</strong><span>{loading ? 'The roster is being checked against your coach assignment.' : 'Create a client, then their body entries and check-ins will appear here.'}</span>{!loading && <button className="coach-primary" type="button" onClick={onCreate}>New client</button>}</section></section>
+}
+
+function PersistedCoachReview({ client, accessToken, navigate, onNotice, bodyOnly = false }) {
+  const [review, setReview] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [draft, setDraft] = useState({ client_visible_coach_note: '', training_considerations: '', safety_notice: '' })
+  const photoUrls = useRef([])
+  const releasePhotoUrls = useCallback(() => {
+    photoUrls.current.forEach((url) => URL.revokeObjectURL(url))
+    photoUrls.current = []
+  }, [])
+  useEffect(() => () => releasePhotoUrls(), [releasePhotoUrls])
+  const load = useCallback(async () => {
+    setLoading(true)
+    setError('')
+    releasePhotoUrls()
+    try {
+      const result = await coachApi.getClientReview(client.id, accessToken)
+      const progressPhotos = await Promise.all((result.progress_photos || []).map(async (photo) => {
+        try {
+          const url = await coachApi.getPrivatePhotoUrl(photo.content_url, accessToken)
+          photoUrls.current.push(url)
+          return { ...photo, url }
+        } catch {
+          return { ...photo, url: null }
+        }
+      }))
+      setReview({ ...result, progress_photos: progressPhotos })
+      setDraft({
+        client_visible_coach_note: result.coaching_context.client_visible_coach_note || '',
+        training_considerations: (result.coaching_context.training_considerations || []).join('\n'),
+        safety_notice: result.coaching_context.safety_notice || '',
+      })
+    } catch (reason) {
+      setError(reason.message || 'Could not load this protected client record.')
+    } finally {
+      setLoading(false)
+    }
+  }, [accessToken, client.id, releasePhotoUrls])
+  useEffect(() => { load() }, [load])
+
+  const saveGuidance = async (event) => {
+    event.preventDefault()
+    setSaving(true)
+    try {
+      const context = await coachApi.updateClientCoachingContext(client.id, {
+        client_visible_coach_note: draft.client_visible_coach_note,
+        training_considerations: draft.training_considerations.split('\n').map((item) => item.trim()).filter(Boolean),
+        safety_notice: draft.safety_notice,
+      }, accessToken)
+      setReview((current) => ({ ...current, coaching_context: context }))
+      onNotice(`Client-visible guidance saved for ${client.name}.`)
+    } catch (reason) {
+      onNotice(reason.message || 'Could not save client guidance.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading) return <CoachNoClient loading />
+  if (error) return <section className="coach-page"><section className="coach-empty"><CoachGlyph name="alert" /><strong>Protected client record unavailable</strong><span>{error}</span><button className="coach-secondary" type="button" onClick={load}>Try again</button></section></section>
+  const bodyEntries = review.body_entries || []
+  const checkins = review.checkins || []
+  const progressPhotos = review.progress_photos || []
+  const latest = bodyEntries[0]
+  const heading = bodyOnly ? 'Body Tracker' : review.client.full_name
+  const copy = bodyOnly ? 'Raw entries recorded by this client. No calculated health conclusions are shown.' : 'Live client signals and client-scoped coaching context.'
+  return <section className="coach-page coach-has-photo-gallery">
+    <CoachHeading eyebrow={`CLIENT REVIEW / ${review.client.client_code}`} title={heading} copy={copy} action={<button className="coach-quiet-button" onClick={() => navigate('Clients')}><CoachGlyph name="clients" />Back to clients</button>} />
+    {!bodyOnly && <article className="panel coach-photo-panel"><header><div><p className="kicker">PROGRESS PHOTOS</p><span>Visible only to this client and their assigned coach.</span></div><Status tone="good">SCOPED</Status></header>{progressPhotos.length ? <div className="coach-photo-gallery">{progressPhotos.map((photo) => <figure key={photo.id}>{photo.url ? <img src={photo.url} alt={`${photo.view} progress photo from ${formatDate(photo.captured_on)}`} /> : <div className="coach-photo-unavailable"><CoachGlyph name="photo" /><span>Image unavailable</span></div>}<figcaption><strong>{photo.view} view</strong><span>{formatDate(photo.captured_on)}</span></figcaption></figure>)}</div> : <div className="coach-empty"><CoachGlyph name="photo" /><strong>No progress photos yet</strong><span>Photos appear here after this client uploads them.</span></div>}</article>}
+    <section className="coach-metric-grid coach-three"><article><p>LATEST WEIGHT</p><strong>{latest ? `${latest.weight_kg}` : '—'}{latest && <small> kg</small>}</strong><span>{latest ? `Logged ${formatDate(latest.entry_date)}` : 'No body entry yet'}</span></article><article><p>BODY ENTRIES</p><strong>{bodyEntries.length}</strong><span>Last 100 authorized records</span></article><article><p>CHECK-INS</p><strong className={checkins.length ? 'lime-text' : 'attention-text'}>{checkins.length}</strong><span>{checkins.length ? `Latest ${formatDate(checkins[0].period_start)}` : 'No check-in submitted'}</span></article></section>
+    <article className="panel coach-data-table"><header><div><p className="kicker">CLIENT-RECORDED BODY DATA</p><span>Visible only to this client and their assigned coach.</span></div><Status tone="good">LIVE</Status></header>{bodyEntries.length ? <div className="coach-table"><div className="coach-table-head"><span>DATE</span><span>WEIGHT</span><span>WAIST</span><span>HIP</span><span>BODY FAT</span><span>RECORD</span></div>{bodyEntries.map((entry) => <div className="coach-table-row" key={entry.id}><span>{formatDate(entry.entry_date)}</span><span>{entry.weight_kg} kg</span><span>{entry.waist_cm == null ? '—' : `${entry.waist_cm} cm`}</span><span>{entry.hip_cm == null ? '—' : `${entry.hip_cm} cm`}</span><span>{entry.body_fat_pct == null ? '—' : `${entry.body_fat_pct}%`}</span><Status tone="good">CLIENT</Status></div>)}</div> : <div className="coach-empty"><CoachGlyph name="trend" /><strong>No body entry yet</strong><span>Data will appear after this client records a check-in metric.</span></div>}</article>
+    {!bodyOnly && <><section className="coach-review-grid"><article className="panel"><header><div><p className="kicker">WEEKLY CHECK-INS</p><span>Client-reported wellbeing context.</span></div><Status tone={checkins.length ? 'good' : 'warning'}>{checkins.length ? 'RECORDED' : 'DUE'}</Status></header>{checkins.length ? <div className="coach-note-list">{checkins.map((checkin) => <div key={checkin.id}><strong>{formatDate(checkin.period_start)} · energy {checkin.energy_score}/5 · sleep {checkin.sleep_score}/5</strong><p>{checkin.observation}{checkin.concern ? ` Concern: ${checkin.concern}` : ''}</p></div>)}</div> : <div className="coach-empty"><CoachGlyph name="file" /><strong>No weekly check-in</strong><span>Use the configured check-in day for the first request.</span></div>}</article><article className="panel"><header><div><p className="kicker">PHOTO RECORDS</p><span>Images remain private until storage review is approved.</span></div></header><div className="coach-review-callout"><CoachGlyph name="photo" /><div><strong>{review.photo_count} protected photo record{review.photo_count === 1 ? '' : 's'}</strong><span>File bytes and image previews are intentionally not exposed in this release.</span></div></div></article></section><section className="coach-review-grid"><form className="panel coach-setup-panel" onSubmit={saveGuidance}><header><div><p className="kicker">CLIENT-VISIBLE GUIDANCE</p><span>Only the selected client and their assigned coach can read this.</span></div><Status tone="good">SCOPED</Status></header><div className="coach-settings-form"><label className="wide-field">Coach note<textarea rows="4" value={draft.client_visible_coach_note} onChange={(event) => setDraft((current) => ({ ...current, client_visible_coach_note: event.target.value }))} placeholder="Clear, actionable coaching guidance…" /></label><label className="wide-field">Training considerations <small>One per line</small><textarea rows="3" value={draft.training_considerations} onChange={(event) => setDraft((current) => ({ ...current, training_considerations: event.target.value }))} placeholder="e.g. Monitor knee comfort" /></label><label className="wide-field">Safety boundary<textarea rows="2" value={draft.safety_notice} onChange={(event) => setDraft((current) => ({ ...current, safety_notice: event.target.value }))} /></label><footer><span>Saving creates an audit event; it never changes another client’s record.</span><button className="coach-primary" type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save client guidance'}</button></footer></div></form><article className="panel"><header><div><p className="kicker">PRIVATE COACH NOTES</p><span>Not visible to the client.</span></div><Status tone="preview">COACH ONLY</Status></header>{review.private_notes.length ? <div className="coach-note-list">{review.private_notes.map((note) => <div key={note.id}><strong>{formatDate(note.created_at.slice(0, 10))}</strong><p>{note.note}</p></div>)}</div> : <div className="coach-empty"><CoachGlyph name="note" /><strong>No private notes</strong><span>Private notes continue to be separate from client-visible guidance.</span></div>}</article></section></>}
+  </section>
+}
+
 export default function CoachWorkspace({ account, accessToken, onSignOut }) {
   const [active, setActive] = useState('Overview')
-  const [clients, setClients] = useState(initialClients)
-  const [selectedClientId, setSelectedClientId] = useState(initialClients[0].id)
+  const [clients, setClients] = useState([])
+  const [selectedClientId, setSelectedClientId] = useState('')
+  const [rosterLoading, setRosterLoading] = useState(true)
+  const [rosterError, setRosterError] = useState('')
   const [notice, setNotice] = useState('')
   const [showCreate, setShowCreate] = useState(false)
+  const [profilePhoto, setProfilePhoto] = useState(null)
+  const profilePhotoUrl = useRef(null)
   const accountName = account?.full_name || 'Coach'
   const accountEmail = account?.email || ''
   const accountInitials = accountName.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()
   const selectedClient = clients.find((client) => client.id === selectedClientId) ?? clients[0]
+  const replaceProfilePhoto = useCallback((nextPhoto) => {
+    if (profilePhotoUrl.current) URL.revokeObjectURL(profilePhotoUrl.current)
+    profilePhotoUrl.current = nextPhoto?.url || null
+    setProfilePhoto(nextPhoto)
+  }, [])
+  useEffect(() => () => {
+    if (profilePhotoUrl.current) URL.revokeObjectURL(profilePhotoUrl.current)
+  }, [])
+  useEffect(() => {
+    let cancelled = false
+    const loadProfilePhoto = async () => {
+      try {
+        const response = await coachApi.getProfilePhoto(accessToken)
+        if (!response.photo) {
+          if (!cancelled) replaceProfilePhoto(null)
+          return
+        }
+        const url = await coachApi.getPrivateProfilePhotoUrl(response.photo.content_url, accessToken)
+        if (cancelled) {
+          URL.revokeObjectURL(url)
+          return
+        }
+        replaceProfilePhoto({ ...response.photo, url })
+      } catch {
+        if (!cancelled) replaceProfilePhoto(null)
+      }
+    }
+    loadProfilePhoto()
+    return () => { cancelled = true }
+  }, [accessToken, replaceProfilePhoto])
+  const uploadProfilePhoto = useCallback(async (file) => {
+    const response = await coachApi.uploadProfilePhoto(file, accessToken)
+    const nextPhoto = {
+      ...response.photo,
+      url: await coachApi.getPrivateProfilePhotoUrl(response.photo.content_url, accessToken),
+    }
+    replaceProfilePhoto(nextPhoto)
+    return nextPhoto
+  }, [accessToken, replaceProfilePhoto])
+  const loadClients = useCallback(async () => {
+    setRosterLoading(true)
+    setRosterError('')
+    try {
+      const response = await coachApi.listClients(accessToken)
+      const nextClients = response.items.map(apiClientToWorkspaceClient)
+      setClients(nextClients)
+      setSelectedClientId((current) => nextClients.some((client) => client.id === current) ? current : (nextClients[0]?.id || ''))
+    } catch (reason) {
+      setClients([])
+      setSelectedClientId('')
+      setRosterError(reason.message || 'Could not load your assigned client roster.')
+    } finally {
+      setRosterLoading(false)
+    }
+  }, [accessToken])
+  useEffect(() => { loadClients() }, [loadClients])
   const pageCopy = { Overview: ['Command Center', 'Precision coaching, progress intelligence and client operations.'], Clients: ['Clients', 'Every client record, one controlled workspace.'], Review: ['Client Review', 'Unified history, plans and private coach context.'], 'Body Tracker': ['Body Tracker', 'Raw data, calculation engine and longitudinal progress.'], Nutrition: ['Nutrition', 'Build precise plans from controlled nutrition data.'], Workout: ['Workout', 'Build, publish and review training programs.'], Libraries: ['Libraries', 'Food and exercise source libraries.'], Settings: ['Settings', 'Coach-wide configuration and controlled data tools.'], Health: ['Health', 'Private records and review boundaries.'], 'Audit Log': ['Audit Log', 'Backend-generated platform activity.'] }
   const choose = (label) => { setActive(label); setNotice('') }
   const openReview = (id = selectedClientId) => { setSelectedClientId(id); choose('Review') }
   const addClient = (created) => {
     const name = created.full_name
     const client = {
-      id: created.client_code,
+      id: created.id,
+      code: created.client_code,
       name,
       initials: name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase(),
       weight: '—',
@@ -230,17 +432,21 @@ export default function CoachWorkspace({ account, accessToken, onSignOut }) {
   const createClient = async (draft) => {
     const created = await coachApi.createClient(draft, accessToken)
     const client = addClient(created)
+    await loadClients()
     setNotice(`${client.name} was created and sent a secure account-setup invitation.`)
     return created
   }
-  const page = active === 'Overview' ? <CoachOverview clients={clients} selectClient={openReview} navigate={choose} onCreate={() => setShowCreate(true)} />
+  const requiresClient = ['Review', 'Body Tracker', 'Nutrition', 'Workout'].includes(active)
+  const unavailableClientPage = requiresClient && (!selectedClient || rosterLoading)
+  const page = unavailableClientPage ? <CoachNoClient loading={rosterLoading} onCreate={() => setShowCreate(true)} />
+    : active === 'Overview' ? <CoachOverview clients={clients} selectClient={openReview} navigate={choose} onCreate={() => setShowCreate(true)} />
     : active === 'Clients' ? <CoachClients clients={clients} onSelectClient={openReview} onCreateClient={createClient} notice={setNotice} />
-      : active === 'Review' ? <CoachReview key={selectedClient.id} client={selectedClient} navigate={choose} />
-        : active === 'Body Tracker' ? <CoachBodyTracker clientId={selectedClientId} clients={clients} setClientId={setSelectedClientId} openReview={() => openReview(selectedClientId)} />
+      : active === 'Review' ? <PersistedCoachReview key={selectedClient.id} client={selectedClient} accessToken={accessToken} navigate={choose} onNotice={setNotice} />
+        : active === 'Body Tracker' ? <PersistedCoachReview key={selectedClient.id} client={selectedClient} accessToken={accessToken} navigate={choose} onNotice={setNotice} bodyOnly />
           : active === 'Nutrition' ? <CoachNutrition clientId={selectedClientId} clients={clients} setClientId={setSelectedClientId} notice={setNotice} />
             : active === 'Workout' ? <CoachWorkout clientId={selectedClientId} clients={clients} setClientId={setSelectedClientId} notice={setNotice} />
               : active === 'Libraries' ? <CoachLibraries notice={setNotice} />
-                : active === 'Settings' ? <CoachSettings notice={setNotice} />
+                : active === 'Settings' ? <CoachSettings notice={setNotice} account={account} profilePhoto={profilePhoto} onUploadProfilePhoto={uploadProfilePhoto} />
                   : active === 'Health' ? <CoachHealth />
                     : <CoachAudit />
   return <div className="os-shell coach-shell">
@@ -248,11 +454,11 @@ export default function CoachWorkspace({ account, accessToken, onSignOut }) {
       <div className="os-brand" aria-label="XForm Coaching OS"><span className="xp-mark">XP</span><span><strong>XFORM</strong><small>COACHING OS</small></span></div>
       <p className="workspace-label">COACH WORKSPACE</p>
       <nav className="os-navigation" aria-label="Coach navigation">{coachNavigation.map(([icon, label]) => <button className={active === label ? 'active' : ''} onClick={() => choose(label)} key={label}><CoachGlyph name={icon} /><span>{label}</span></button>)}</nav>
-      <div className="account-block"><div className="account-detail"><span className="account-avatar">{accountInitials}</span><span><strong>{accountName}</strong><small>{accountEmail}</small></span></div><button onClick={onSignOut}>Sign out</button></div>
+      <div className="account-block"><div className="account-detail"><span className="account-avatar">{profilePhoto?.url ? <img src={profilePhoto.url} alt="" /> : accountInitials}</span><span><strong>{accountName}</strong><small>{accountEmail}</small></span></div><button onClick={onSignOut}>Sign out</button></div>
     </aside>
     <main className="os-main">
       <header className="os-topbar"><button className="mobile-menu" onClick={() => setNotice('Use bottom navigation on mobile.')} aria-label="Open navigation"><CoachGlyph name="menu" /></button><div><h1>{pageCopy[active][0]}</h1><p>{pageCopy[active][1]}</p></div><div className="coach-top-actions"><span className="online-state"><i />Authenticated coach</span></div></header>
-      <div className="os-content">{notice && <div className="os-notice" role="status"><span>{notice}</span><button onClick={() => setNotice('')} aria-label="Dismiss message"><CoachGlyph name="close" /></button></div>}{page}</div>
+      <div className="os-content">{(notice || rosterError) && <div className="os-notice" role="status"><span>{notice || rosterError}</span><button onClick={() => { setNotice(''); setRosterError('') }} aria-label="Dismiss message"><CoachGlyph name="close" /></button></div>}{page}</div>
     </main>
     <nav className="mobile-navigation coach-mobile-nav" aria-label="Mobile coach navigation">{coachNavigation.map(([icon, label]) => <button onClick={() => choose(label)} className={active === label ? 'active' : ''} key={label}><CoachGlyph name={icon} /><span>{label === 'Body Tracker' ? 'Body' : label}</span></button>)}</nav>
     {showCreate && <NewClientForm onCancel={() => setShowCreate(false)} onCreate={createClient} />}

@@ -7,6 +7,8 @@ from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 from fastapi.responses import FileResponse, Response
 
 from app.api.deps import get_client_service
+from app.core.config import Settings, get_settings
+from app.core.supabase import AuthenticatedUser, get_authenticated_user
 from app.schemas.client import (
     BodyEntriesResponse,
     BodyEntrySaveResponse,
@@ -33,6 +35,8 @@ from app.schemas.client import (
 )
 from app.services.client import ClientService
 from app.services.photo_storage import LocalPhotoStorage
+from app.services.profile_photo import ProfilePhotoService
+from app.schemas.profile_photo import ProfilePhotoResponse
 
 
 router = APIRouter(prefix="/client", tags=["Client"])
@@ -178,3 +182,44 @@ def get_profile(service: Service):
 @router.patch("/profile", response_model=ProfileSaveResponse, responses=ERROR_RESPONSES)
 def update_profile(payload: ProfileUpdate, service: Service):
     return service.update_profile(payload)
+
+
+@router.get("/profile/photo", response_model=ProfilePhotoResponse, responses=ERROR_RESPONSES)
+def get_profile_photo(
+    settings: Settings = Depends(get_settings),
+    user: AuthenticatedUser = Depends(get_authenticated_user),
+):
+    """Return the authenticated client's profile-photo metadata only."""
+
+    return ProfilePhotoService(settings, user).get_photo("client")
+
+
+@router.post("/profile/photo", response_model=ProfilePhotoResponse, responses=ERROR_RESPONSES)
+async def upload_profile_photo(
+    file: UploadFile = File(description="JPEG, PNG or WebP image up to 2 MB"),
+    settings: Settings = Depends(get_settings),
+    user: AuthenticatedUser = Depends(get_authenticated_user),
+):
+    """Store one compact, private avatar for the authenticated client."""
+
+    try:
+        photo = await ProfilePhotoService(settings, user).upload_photo(file, "client")
+        return {"photo": photo}
+    finally:
+        await file.close()
+
+
+@router.get("/profile/photo/content", responses={404: {"model": ErrorResponse}})
+def get_profile_photo_content(
+    settings: Settings = Depends(get_settings),
+    user: AuthenticatedUser = Depends(get_authenticated_user),
+):
+    content, media_type, file_name = ProfilePhotoService(settings, user).get_photo_content("client")
+    return Response(
+        content,
+        media_type=media_type,
+        headers={
+            "Content-Disposition": f'inline; filename="{file_name}"',
+            "Cache-Control": "private, no-store",
+        },
+    )

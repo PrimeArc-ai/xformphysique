@@ -1,0 +1,8 @@
+{
+  "hooks": [
+    {
+      "trigger": "SessionStart",
+      "command": "echo 'Use caveman mode. Cut filler. Keep technical accuracy.'"
+    }
+  ]
+}

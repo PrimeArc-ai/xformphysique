@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
-import { clientApi, resourceUrl, setAccessToken } from '../api/client'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { clientApi, setAccessToken } from '../api/client'
 
 const today = new Date().toISOString().slice(0, 10)
 
@@ -12,6 +12,7 @@ const initialData = {
   workout: null,
   health: null,
   profile: null,
+  profilePhoto: null,
 }
 
 const toBodyEntry = (entry) => ({
@@ -28,16 +29,22 @@ const toCheckIn = (entry) => ({
   sleep: entry.sleep_score,
 })
 
-const toPhoto = (photo) => ({
+const toPhoto = async (photo) => ({
   ...photo,
   date: photo.captured_on,
-  url: resourceUrl(photo.content_url),
+  url: await clientApi.getPrivatePhotoUrl(photo.content_url),
 })
 
 export default function useClientData({ enabled, accessToken }) {
   const [data, setData] = useState(initialData)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const photoUrls = useRef([])
+
+  const releasePhotoUrls = useCallback(() => {
+    photoUrls.current.forEach((url) => URL.revokeObjectURL(url))
+    photoUrls.current = []
+  }, [])
 
   const load = useCallback(async () => {
     if (!enabled || !accessToken) {
@@ -49,7 +56,7 @@ export default function useClientData({ enabled, accessToken }) {
     setLoading(true)
     setError('')
     try {
-      const [dashboard, body, checkIns, photos, nutrition, workout, health, profile] = await Promise.all([
+      const [dashboard, body, checkIns, photos, nutrition, workout, health, profile, profilePhotoResponse] = await Promise.all([
         clientApi.getDashboard(),
         clientApi.getBodyEntries(),
         clientApi.getCheckIns(),
@@ -58,29 +65,40 @@ export default function useClientData({ enabled, accessToken }) {
         clientApi.getWorkout(today),
         clientApi.getHealthSummary(),
         clientApi.getProfile(),
+        clientApi.getProfilePhoto(),
       ])
+      const hydratedPhotos = await Promise.all(photos.items.map(toPhoto))
+      const profilePhoto = profilePhotoResponse.photo
+        ? { ...profilePhotoResponse.photo, url: await clientApi.getPrivateProfilePhotoUrl(profilePhotoResponse.photo.content_url) }
+        : null
+      releasePhotoUrls()
+      photoUrls.current = [...hydratedPhotos.map((photo) => photo.url), profilePhoto?.url].filter(Boolean)
       setData({
         dashboard,
         bodyEntries: body.items.map(toBodyEntry),
         checkIns: checkIns.items.map(toCheckIn),
-        photos: photos.items.map(toPhoto),
+        photos: hydratedPhotos,
         nutrition,
         workout,
         health,
         profile,
+        profilePhoto,
       })
     } catch (requestError) {
       setError(requestError.message || 'Could not connect to client API.')
     } finally {
       setLoading(false)
     }
-  }, [accessToken, enabled])
+  }, [accessToken, enabled, releasePhotoUrls])
 
   useEffect(() => {
     setAccessToken(accessToken)
     load()
-    return () => setAccessToken(null)
-  }, [accessToken, load])
+    return () => {
+      setAccessToken(null)
+      releasePhotoUrls()
+    }
+  }, [accessToken, load, releasePhotoUrls])
 
   const saveBodyEntry = useCallback(async (entry) => {
     const saved = await clientApi.saveBodyEntry(entry)
@@ -107,7 +125,9 @@ export default function useClientData({ enabled, accessToken }) {
 
   const uploadPhoto = useCallback(async (file, view) => {
     const saved = await clientApi.uploadPhoto(file, view, today)
-    setData((current) => ({ ...current, photos: [toPhoto(saved), ...current.photos] }))
+    const photo = await toPhoto(saved)
+    photoUrls.current.push(photo.url)
+    setData((current) => ({ ...current, photos: [photo, ...current.photos] }))
     return saved
   }, [])
 
@@ -137,6 +157,23 @@ export default function useClientData({ enabled, accessToken }) {
     return saved
   }, [])
 
+  const uploadProfilePhoto = useCallback(async (file) => {
+    const response = await clientApi.uploadProfilePhoto(file)
+    const nextPhoto = {
+      ...response.photo,
+      url: await clientApi.getPrivateProfilePhotoUrl(response.photo.content_url),
+    }
+    setData((current) => {
+      if (current.profilePhoto?.url) {
+        URL.revokeObjectURL(current.profilePhoto.url)
+        photoUrls.current = photoUrls.current.filter((url) => url !== current.profilePhoto.url)
+      }
+      photoUrls.current.push(nextPhoto.url)
+      return { ...current, profilePhoto: nextPhoto }
+    })
+    return nextPhoto
+  }, [])
+
   return {
     ...data,
     loading,
@@ -149,5 +186,6 @@ export default function useClientData({ enabled, accessToken }) {
     getRecipeGuide,
     saveWorkout,
     saveProfile,
+    uploadProfilePhoto,
   }
 }

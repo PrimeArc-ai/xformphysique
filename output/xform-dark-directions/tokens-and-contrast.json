@@ -1,0 +1,184 @@
+{
+  "themes": {
+    "performance": {
+      "bg": "#090a0b",
+      "surface": "#141719",
+      "raised": "#1d2123",
+      "border": "#343a3d",
+      "text": "#f3f6f4",
+      "muted": "#a3abae",
+      "accent": "#b8ff2b",
+      "accent-ink": "#11180a",
+      "body": "'Manrope'",
+      "display": "'Barlow Condensed'",
+      "numbers": "'Barlow Condensed'",
+      "display-weight": "700",
+      "radius": "4px",
+      "control": "3px",
+      "selected": "#202b16"
+    },
+    "studio": {
+      "bg": "#100f0e",
+      "surface": "#1a1816",
+      "raised": "#25221f",
+      "border": "#403b34",
+      "text": "#f6f0e6",
+      "muted": "#b7aca0",
+      "accent": "#d7bc91",
+      "accent-ink": "#231c13",
+      "body": "'DM Sans'",
+      "display": "'Instrument Serif'",
+      "numbers": "'DM Sans'",
+      "display-weight": "400",
+      "radius": "20px",
+      "control": "24px",
+      "selected": "#30291f"
+    },
+    "precision": {
+      "bg": "#0b1115",
+      "surface": "#121c22",
+      "raised": "#1a2830",
+      "border": "#2c404b",
+      "text": "#edf5f8",
+      "muted": "#a2b4bd",
+      "accent": "#a9d6cd",
+      "accent-ink": "#132522",
+      "body": "'IBM Plex Sans'",
+      "display": "'Sora'",
+      "numbers": "'IBM Plex Mono'",
+      "display-weight": "500",
+      "radius": "8px",
+      "control": "6px",
+      "selected": "#213731"
+    }
+  },
+  "checks": [
+    {
+      "theme": "performance",
+      "text": "text",
+      "background": "bg",
+      "ratio": 18.21,
+      "pass": true
+    },
+    {
+      "theme": "performance",
+      "text": "text",
+      "background": "surface",
+      "ratio": 16.55,
+      "pass": true
+    },
+    {
+      "theme": "performance",
+      "text": "muted",
+      "background": "surface",
+      "ratio": 7.71,
+      "pass": true
+    },
+    {
+      "theme": "performance",
+      "text": "muted",
+      "background": "raised",
+      "ratio": 6.95,
+      "pass": true
+    },
+    {
+      "theme": "performance",
+      "text": "accent",
+      "background": "selected",
+      "ratio": 12.25,
+      "pass": true
+    },
+    {
+      "theme": "performance",
+      "text": "accent-ink",
+      "background": "accent",
+      "ratio": 14.99,
+      "pass": true
+    },
+    {
+      "theme": "studio",
+      "text": "text",
+      "background": "bg",
+      "ratio": 16.89,
+      "pass": true
+    },
+    {
+      "theme": "studio",
+      "text": "text",
+      "background": "surface",
+      "ratio": 15.62,
+      "pass": true
+    },
+    {
+      "theme": "studio",
+      "text": "muted",
+      "background": "surface",
+      "ratio": 7.94,
+      "pass": true
+    },
+    {
+      "theme": "studio",
+      "text": "muted",
+      "background": "raised",
+      "ratio": 7.1,
+      "pass": true
+    },
+    {
+      "theme": "studio",
+      "text": "accent",
+      "background": "selected",
+      "ratio": 7.86,
+      "pass": true
+    },
+    {
+      "theme": "studio",
+      "text": "accent-ink",
+      "background": "accent",
+      "ratio": 9.22,
+      "pass": true
+    },
+    {
+      "theme": "precision",
+      "text": "text",
+      "background": "bg",
+      "ratio": 17.21,
+      "pass": true
+    },
+    {
+      "theme": "precision",
+      "text": "text",
+      "background": "surface",
+      "ratio": 15.65,
+      "pass": true
+    },
+    {
+      "theme": "precision",
+      "text": "muted",
+      "background": "surface",
+      "ratio": 8.07,
+      "pass": true
+    },
+    {
+      "theme": "precision",
+      "text": "muted",
+      "background": "raised",
+      "ratio": 7.05,
+      "pass": true
+    },
+    {
+      "theme": "precision",
+      "text": "accent",
+      "background": "selected",
+      "ratio": 7.97,
+      "pass": true
+    },
+    {
+      "theme": "precision",
+      "text": "accent-ink",
+      "background": "accent",
+      "ratio": 10.03,
+      "pass": true
+    }
+  ],
+  "scope": "Selected normal-text colour pairs only; not full accessibility certification."
+}

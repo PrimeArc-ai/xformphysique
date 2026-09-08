@@ -1,0 +1,25 @@
+/* Palette overlay only: the approved dashboard's geometry and type are retained. */
+:root {
+  --bg: #090a0b;
+  --surface: #141719;
+  --raised: #1d2123;
+  --border: #343a3d;
+  --ink: #f5f7f4;
+  --muted: #abb3ad;
+  --accent: #c7f542;
+  --action-ink: #11180a;
+  --selected: #242e17;
+}
+
+.training-photo { background-color: var(--bg); }
+.training-photo::before {
+  background: linear-gradient(90deg, #090a0bbb, transparent 72%);
+}
+.signin-photo::after {
+  background: linear-gradient(90deg, #090a0bbb, transparent 75%);
+}
+.training-photo-copy .label { color: #d3d9d4; }
+
+/* The reference sheet now demonstrates the actual body font, not retired Sora.
+   This does not affect dashboard or login typography. */
+.type-sample.old h2 { font-family: var(--body); font-weight: 500; }

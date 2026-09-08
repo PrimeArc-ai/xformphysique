@@ -10,5 +10,10 @@ export default defineConfig({
         changeOrigin: true,
       },
     },
+    watch: {
+      // Only frontend sources need watching. Python environments and generated
+      // design/test artifacts can exhaust OS watchers and never drive Vite HMR.
+      ignored: ['**/backend/**', '**/output/**', '**/playwright-report/**', '**/test-results/**'],
+    },
   },
 })

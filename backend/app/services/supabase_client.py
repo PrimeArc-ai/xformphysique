@@ -3,13 +3,13 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import quote
-from uuid import uuid4
 
 from fastapi import UploadFile
 
 from app.core.config import Settings
 from app.core.errors import APIError
 from app.core.supabase import AuthenticatedUser, SupabaseGateway
+from app.services.r2_photo_storage import R2PhotoStorage
 from app.schemas.client import (
     BodyEntryUpsert,
     CheckInUpsert,
@@ -17,10 +17,6 @@ from app.schemas.client import (
     ProfileUpdate,
     WorkoutSessionUpdate,
 )
-
-
-ALLOWED_IMAGE_TYPES = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
-
 
 def _week_start(value: date) -> date:
     return value - timedelta(days=value.weekday())
@@ -39,12 +35,17 @@ class SupabaseClientService:
     """Client API use cases over Supabase PostgREST with the caller's JWT intact."""
 
     def __init__(self, settings: Settings, user: AuthenticatedUser) -> None:
+        self.settings = settings
         self.user = user
         self.client_id = user.id
         self.gateway = SupabaseGateway(settings, user.access_token)
 
     def workspace(self) -> dict[str, Any]:
         profile = self._profile_row()
+        if profile["role"] == "coach":
+            coach = self._one_or_none("coaches", {"id": f"eq.{self.user.id}"})
+            if not coach or not coach.get("is_active"):
+                raise APIError(403, "coach_inactive", "Your coach access has been suspended. Contact your administrator.")
         return {
             "id": profile["id"],
             "email": profile.get("email") or self.user.email,
@@ -153,30 +154,19 @@ class SupabaseClientService:
     async def upload_progress_photo(self, file: UploadFile, view: str, captured_on: date) -> dict[str, Any]:
         if captured_on > date.today():
             raise APIError(422, "future_date", "Photo capture date cannot be in future")
-        content_type = (file.content_type or "").lower()
-        suffix = ALLOWED_IMAGE_TYPES.get(content_type)
-        if suffix is None:
-            raise APIError(422, "invalid_photo_type", "Upload a JPEG, PNG or WebP image")
-        content = await file.read(10 * 1024 * 1024 + 1)
-        if not content:
-            raise APIError(422, "empty_photo", "Photo file cannot be empty")
-        if len(content) > 10 * 1024 * 1024:
-            raise APIError(422, "photo_too_large", "Photo exceeds 10 MB limit")
-        storage_path = f"{self.client_id}/{uuid4().hex}{suffix}"
-        self.gateway.request("POST", f"/storage/v1/object/progress-photos/{quote(storage_path)}", content=content, headers={"Content-Type": content_type, "x-upsert": "false"})
+        storage = R2PhotoStorage(self.settings)
+        storage_path, byte_size, content_type, safe_filename = await storage.save(file, self.client_id)
         try:
-            rows = self._write("POST", "progress_photos", {"client_id": self.client_id, "view": view, "captured_on": captured_on.isoformat(), "original_filename": (file.filename or "progress-photo")[:255], "storage_path": storage_path, "content_type": content_type, "byte_size": len(content)})
+            rows = self._write("POST", "progress_photos", {"client_id": self.client_id, "view": view, "captured_on": captured_on.isoformat(), "original_filename": safe_filename, "storage_path": storage_path, "storage_provider": "r2", "content_type": content_type, "byte_size": byte_size})
             return self._photo_payload(rows[0])
         except Exception:
-            try:
-                self.gateway.request("DELETE", f"/storage/v1/object/progress-photos/{quote(storage_path)}")
-            finally:
-                raise
-        finally:
-            await file.close()
+            storage.delete(storage_path)
+            raise
 
     def get_photo_content(self, photo_id: str) -> tuple[bytes, str, str]:
         photo = self._one("progress_photos", {"id": f"eq.{photo_id}", "client_id": f"eq.{self.client_id}"}, "photo_not_found", "Progress photo not found")
+        if photo.get("storage_provider") == "r2":
+            return R2PhotoStorage(self.settings).read(photo["storage_path"]), photo["content_type"], photo["original_filename"]
         response = self.gateway.request("GET", f"/storage/v1/object/authenticated/progress-photos/{quote(photo['storage_path'])}")
         return response.content, photo["content_type"], photo["original_filename"]
 

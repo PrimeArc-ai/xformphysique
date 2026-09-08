@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import httpx
-from fastapi import Header
+from fastapi import Depends, Header
 
 from app.core.config import Settings, get_settings
 from app.core.errors import APIError
@@ -69,6 +69,8 @@ class SupabaseGateway:
             detail = {}
         message = detail.get("message") or detail.get("msg") or "Supabase request failed"
         status = response.status_code
+        if detail.get("code") == "P0002":
+            raise APIError(404, "resource_not_found", "Coach not found")
         if status in {401, 403}:
             raise APIError(status, "authorization_failed", message)
         if status == 404:
@@ -90,7 +92,7 @@ class SupabaseAdminGateway(SupabaseGateway):
             raise APIError(
                 503,
                 "supabase_admin_not_configured",
-                "Client invitations require the Supabase server secret key",
+                "Account provisioning requires the Supabase server secret key",
             )
         self.base_url = settings.supabase_url.rstrip("/")
         self.admin_key = settings.supabase_admin_key
@@ -105,7 +107,7 @@ class SupabaseAdminGateway(SupabaseGateway):
 
 def get_authenticated_user(
     authorization: str | None = Header(default=None),
-    settings: Settings = get_settings(),
+    settings: Settings = Depends(get_settings),
 ) -> AuthenticatedUser:
     if not settings.supabase_enabled:
         raise APIError(503, "supabase_not_configured", "Supabase authentication is not configured")

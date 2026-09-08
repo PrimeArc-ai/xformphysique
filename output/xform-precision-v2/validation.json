@@ -1,0 +1,66 @@
+{
+  "retained": {
+    "bg": true,
+    "surface": true,
+    "raised": true,
+    "border": true,
+    "ink": true,
+    "muted": true,
+    "accent": true,
+    "action-ink": true
+  },
+  "preservation": [
+    {
+      "path": "output/xform-dark-directions/1-performance.png",
+      "sha256": "ea8a84e6f72e68c1731b1e7ff4f34dc9030ccb004fd953906486ca10228cb32d",
+      "unchanged": true
+    },
+    {
+      "path": "output/xform-dark-directions/3-precision.png",
+      "sha256": "d7881ae0889c97cf883fea6217066d22b1ffe5cbd249de832b27258e4ce6c2c4",
+      "unchanged": true
+    },
+    {
+      "path": "src/styles.css",
+      "sha256": "60b865ac1c38320836c98bf5814391b0d6a7cc6746f67e73b0bdde25bff6c31e",
+      "unchanged": true
+    },
+    {
+      "path": "src/App.jsx",
+      "sha256": "3aa03906bd7a45368afb1515a3540ceffcd00a541437c156dbf0d9df80dc50ca",
+      "unchanged": true
+    }
+  ],
+  "contrast": [
+    {
+      "foreground": "ink",
+      "background": "bg",
+      "ratio": 17.21,
+      "pass": true
+    },
+    {
+      "foreground": "ink",
+      "background": "surface",
+      "ratio": 15.65,
+      "pass": true
+    },
+    {
+      "foreground": "muted",
+      "background": "surface",
+      "ratio": 8.07,
+      "pass": true
+    },
+    {
+      "foreground": "muted",
+      "background": "raised",
+      "ratio": 7.05,
+      "pass": true
+    },
+    {
+      "foreground": "action-ink",
+      "background": "accent",
+      "ratio": 10.03,
+      "pass": true
+    }
+  ]
+}

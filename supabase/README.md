@@ -9,7 +9,7 @@ This directory is the database source of truth for the first Supabase deployment
 - Normalised nutrition plans, meals, ingredients, adherence, and recipe-guide history.
 - Normalised training programmes, sessions, exercises, and per-set workout logs.
 - Coach food/exercise libraries, workspace settings, and append-only audit-event storage.
-- A private `progress-photos` Storage bucket limited to JPEG, PNG, and WebP at 10 MB.
+- A legacy private `progress-photos` Storage bucket limited to JPEG, PNG, and WebP at 10 MB.
 - Row Level Security policies for client ownership and assigned-coach access.
 
 ## Current deployment status
@@ -100,8 +100,31 @@ New email-password registrations become `client` profiles through the migrationâ
 - The migration stores only the client context currently shown in the UI. It does not create clinical-report storage, diagnosis, consent-retention, account-deletion, notifications, payments, or CSV import/export workflows because no approved API behavior exists for them yet.
 - Private coach notes are separate from the client-visible coaching context. Clients cannot read `coach_private_notes`.
 - The current workout-session RLS permits the client to update only their own session row. FastAPI remains responsible for limiting that update to status, completion time, difficulty, note, and set logs as specified by the existing API contract.
-- WhatsApp/SMS is deliberately not integrated in this slice. See the product
-  decision in the implementation handoff before selecting a production sender.
+- WhatsApp is represented only by the consent-gated follow-up migration below;
+  no provider credentials, template, scheduler, or live sends are enabled by
+  the database migration itself.
+
+## Follow-up migrations in this repository
+
+- `202608240001_coach_review_audit.sql` enables the live coach roster/review API
+  to append a `coach_note_saved` audit event for its assigned client.
+- `202608240002_checkin_reminder_automation.sql` adds consent-gated WhatsApp
+  preference and delivery-outbox tables. It is disabled by default and does not
+  create a public phone-number policy.
+- `202608240003_cloudflare_r2_photo_storage.sql` marks existing photo metadata
+  as legacy Supabase objects and makes new FastAPI uploads use private
+  Cloudflare R2 objects. It does not delete existing image bytes.
+- `202608240004_profile_photo_storage.sql` creates the metadata-only mapping for
+  one current Cloudflare R2 profile image per account. It was applied to the
+  connected project on 2026-08-24.
+- `202608240005_profile_photo_owner_only_access.sql` tightens that mapping to
+  owner-only RLS. Client and coach profile images are never exposed to each
+  other by this application.
+
+Apply these in order after registering the initial migration in Supabase CLI
+history. The WhatsApp worker itself remains inactive until the FastAPI server
+has a Supabase secret key, protected job token, Twilio sender, and approved
+utility template configured.
 
 ## Verify before deployment
 
@@ -109,7 +132,10 @@ Use a non-production project first. The schema should be applied from migrations
 
 1. Register a client and confirm the trigger creates `profiles`, `clients`, tracking preferences, and coaching context.
 2. Provision a coach server-side, assign the coach to the client, and verify both roles can read only their permitted rows.
-3. Upload an image under `<client-auth-uuid>/<photo-uuid>.jpg`; verify the client and assigned coach can read it, while another client cannot.
+3. Upload a progress image under `<client-auth-uuid>/<photo-uuid>.jpg`; verify the client and assigned coach can read it, while another client cannot.
+4. Upload a profile image as each role and verify it is stored as one opaque
+   `profiles/<profile-uuid>/<photo-uuid>.webp` object. Confirm each account can
+   read only its own image metadata and bytes.
 4. Exercise the 16 client endpoints with a real JWT and confirm FastAPI only returns the authenticated clientâ€™s records.
 
 Authoritative references: <https://supabase.com/docs/guides/auth/managing-user-data>, <https://supabase.com/docs/guides/database/postgres/row-level-security>, <https://supabase.com/docs/guides/storage/security/access-control>, and <https://supabase.com/docs/guides/local-development/overview>.

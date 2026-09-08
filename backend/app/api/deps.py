@@ -1,4 +1,4 @@
-from typing import Annotated, Any
+from typing import Any
 
 from fastapi import Depends, Header
 from sqlalchemy.orm import Session
@@ -12,9 +12,9 @@ from app.services.supabase_client import SupabaseClientService
 
 
 def get_client_service(
-    db: Annotated[Session, Depends(get_db)],
-    settings: Annotated[Settings, Depends(get_settings)],
-    authorization: Annotated[str | None, Header()] = None,
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+    authorization: str | None = Header(default=None),
 ) -> Any:
     """Use strict Supabase identity in configured environments; retain isolated SQLite tests."""
 

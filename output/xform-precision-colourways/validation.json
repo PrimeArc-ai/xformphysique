@@ -1,0 +1,163 @@
+{
+  "contrast": [
+    {
+      "palette": "electric-blue",
+      "pairs": [
+        {
+          "foreground": "ink",
+          "background": "bg",
+          "ratio": 18.02,
+          "passesNormalTextAA": true
+        },
+        {
+          "foreground": "ink",
+          "background": "surface",
+          "ratio": 15.79,
+          "passesNormalTextAA": true
+        },
+        {
+          "foreground": "muted",
+          "background": "surface",
+          "ratio": 8.62,
+          "passesNormalTextAA": true
+        },
+        {
+          "foreground": "muted",
+          "background": "raised",
+          "ratio": 7.44,
+          "passesNormalTextAA": true
+        },
+        {
+          "foreground": "accent",
+          "background": "surface",
+          "ratio": 7.43,
+          "passesNormalTextAA": true
+        },
+        {
+          "foreground": "accent",
+          "background": "selected",
+          "ratio": 5.7,
+          "passesNormalTextAA": true
+        },
+        {
+          "foreground": "button-ink",
+          "background": "primary",
+          "ratio": 4.93,
+          "passesNormalTextAA": true
+        }
+      ]
+    },
+    {
+      "palette": "signal-coral",
+      "pairs": [
+        {
+          "foreground": "ink",
+          "background": "bg",
+          "ratio": 17.86,
+          "passesNormalTextAA": true
+        },
+        {
+          "foreground": "ink",
+          "background": "surface",
+          "ratio": 16.05,
+          "passesNormalTextAA": true
+        },
+        {
+          "foreground": "muted",
+          "background": "surface",
+          "ratio": 8.16,
+          "passesNormalTextAA": true
+        },
+        {
+          "foreground": "muted",
+          "background": "raised",
+          "ratio": 7.21,
+          "passesNormalTextAA": true
+        },
+        {
+          "foreground": "accent",
+          "background": "surface",
+          "ratio": 7.67,
+          "passesNormalTextAA": true
+        },
+        {
+          "foreground": "accent",
+          "background": "selected",
+          "ratio": 5.96,
+          "passesNormalTextAA": true
+        },
+        {
+          "foreground": "button-ink",
+          "background": "primary",
+          "ratio": 6.47,
+          "passesNormalTextAA": true
+        }
+      ]
+    },
+    {
+      "palette": "ultraviolet",
+      "pairs": [
+        {
+          "foreground": "ink",
+          "background": "bg",
+          "ratio": 17.72,
+          "passesNormalTextAA": true
+        },
+        {
+          "foreground": "ink",
+          "background": "surface",
+          "ratio": 16.07,
+          "passesNormalTextAA": true
+        },
+        {
+          "foreground": "muted",
+          "background": "surface",
+          "ratio": 8.47,
+          "passesNormalTextAA": true
+        },
+        {
+          "foreground": "muted",
+          "background": "raised",
+          "ratio": 7.27,
+          "passesNormalTextAA": true
+        },
+        {
+          "foreground": "accent",
+          "background": "surface",
+          "ratio": 7.81,
+          "passesNormalTextAA": true
+        },
+        {
+          "foreground": "accent",
+          "background": "selected",
+          "ratio": 6.16,
+          "passesNormalTextAA": true
+        },
+        {
+          "foreground": "button-ink",
+          "background": "primary",
+          "ratio": 4.57,
+          "passesNormalTextAA": true
+        }
+      ]
+    }
+  ],
+  "sourceHashes": [
+    {
+      "file": "theme.css",
+      "sha256": "c69ecf1ec72d4fce7c7ad295ef6da71be758ba460052cf2fdea2c11f4c56a9d0",
+      "originalSourcePreserved": true
+    },
+    {
+      "file": "preview.js",
+      "sha256": "9c834b3fc6c88b133b75b2b32db98fcf2dfa39c1d4723b6aea3ea2be227ad884",
+      "originalSourcePreserved": true
+    },
+    {
+      "file": "assets/strength-editorial.png",
+      "sha256": "3bc1ea4b8af61263547cfb342369ffa58696b50d0f0a54a3fff4b9afdd1ecccd",
+      "originalSourcePreserved": true
+    }
+  ],
+  "note": "Selected text pairs only; not a complete accessibility audit."
+}

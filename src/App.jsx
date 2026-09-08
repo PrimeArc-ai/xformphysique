@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import BodyTracker from './BodyTracker'
+import ClientDashboard from './ClientDashboard'
 import { CheckInsPage, HealthSummaryPage, NutritionPage, PhotosPage, ProfilePage, WorkoutPage } from './ClientPages'
 import CoachWorkspace from './CoachWorkspace'
+import AdminWorkspace from './AdminWorkspace'
 import useClientData from './hooks/useClientData'
 import useAuth from './hooks/useAuth'
 import AuthGate from './AuthGate'
@@ -34,55 +36,6 @@ function Icon({ name, size = 18, stroke = 1.7 }) {
     menu: <><path d="M4 7h16" /><path d="M4 12h16" /><path d="M4 17h16" /></>,
   }
   return <svg {...props}>{paths[name]}</svg>
-}
-
-const Metric = ({ label, value, unit, caption, tone = '' }) => (
-  <article className="signal-metric"><p>{label}</p><h3 className={tone}>{value}{unit && <small>{unit}</small>}</h3><span>{caption}</span></article>
-)
-
-function Dashboard({ dashboard, bodyEntries, openTracker, navigate }) {
-  const trend = dashboard.body.trend ?? []
-  const latestEntry = bodyEntries[0] ?? null
-  const startWeight = trend[0]?.weight_kg ?? latestEntry?.weight ?? 0
-  const currentWeight = dashboard.body.current_weight_kg ?? latestEntry?.weight ?? 0
-  const change = dashboard.body.change_from_start_kg ?? 0
-  const targetProgress = dashboard.body.target_progress_percent
-  const volume = dashboard.training_volume
-  const firstTrendDate = trend[0]?.date
-  const latestTrendDate = trend.at(-1)?.date
-
-  return <>
-    <section className="main-signal" aria-labelledby="signal-heading">
-      <div><p className="kicker">YOUR CURRENT SIGNAL</p><h2 id="signal-heading">{currentWeight ? currentWeight.toFixed(1) : '—'} <small>{currentWeight ? 'kg' : ''}</small></h2><p className="signal-copy"><strong>{change > 0 ? '+' : '−'}{Math.abs(change).toFixed(1)} kg</strong> since your first recorded weigh-in.</p></div>
-      <div className="target-ring" aria-label={`${targetProgress ?? 0} percent of weight target complete`}><span><strong>{targetProgress ?? '—'}{targetProgress != null && '%'}</strong><small>TARGET</small></span></div>
-    </section>
-
-    <section className="metric-row" aria-label="Current progress statistics">
-      <Metric label="CURRENT WEIGHT" value={currentWeight ? currentWeight.toFixed(1) : '—'} unit={currentWeight ? 'kg' : ''} caption="Latest recorded entry" />
-      <Metric label="WAIST" value={dashboard.body.latest_waist_cm?.toFixed(0) ?? '—'} unit={dashboard.body.latest_waist_cm ? 'cm' : ''} caption="Latest measurement" />
-      <Metric label="WEIGHT ENTRIES" value={bodyEntries.length} caption="Recorded history" />
-      <Metric label="CHECK-INS" value={dashboard.check_ins.count} caption={dashboard.check_ins.status === 'submitted' ? 'Completed this cycle' : 'Awaiting check-in'} tone={dashboard.check_ins.count ? 'lime-text' : ''} />
-    </section>
-
-    <section className="signal-grid">
-      <article className="panel chart-panel">
-        <header><div><p className="kicker">BODY SIGNAL</p><span>Daily weight / trend</span></div><span className="range-label">LAST 7 ENTRIES</span></header>
-        <div className="weight-chart" aria-label="Weight trend"><svg viewBox="0 0 680 270" preserveAspectRatio="none"><defs><linearGradient id="signalFill" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="#b7ff2c" stopOpacity=".13" /><stop offset="1" stopColor="#b7ff2c" stopOpacity="0" /></linearGradient></defs><path className="grid-line" d="M0 42H680M0 134H680M0 226H680" /><path d="M20 50 C70 70 86 62 126 78 S188 92 226 98 S288 118 326 122 S380 137 418 142 S486 161 525 174 S590 197 660 208 L660 245 L20 245Z" fill="url(#signalFill)" /><path className="signal-path" d="M20 50 C70 70 86 62 126 78 S188 92 226 98 S288 118 326 122 S380 137 418 142 S486 161 525 174 S590 197 660 208" /></svg><span className="chart-start">{startWeight.toFixed(1)} kg</span><span className="chart-end">{currentWeight.toFixed(1)} kg</span></div>
-        <footer><span>{firstTrendDate ?? '—'}</span><span>tracked progress</span><span>{latestTrendDate ?? '—'}</span></footer>
-      </article>
-
-      <article className="panel action-panel">
-        <header><div><p className="kicker">YOUR NEXT ACTION</p><span>Keep your signal current.</span></div></header>
-        <div className="action-list"><button onClick={openTracker}><span>Log body progress</span><Icon name="arrow" size={16} /></button><button onClick={() => navigate('Nutrition')}><span>Open nutrition plan</span><Icon name="arrow" size={16} /></button><button onClick={() => navigate('Workout')}><span>Open workout</span><Icon name="arrow" size={16} /></button><button onClick={() => navigate('Health Summary')}><span>View health summary</span><Icon name="arrow" size={16} /></button></div>
-      </article>
-    </section>
-
-    <section className="panel volume-panel">
-      <header><div><h2>Training volume</h2><span>Last 30 days</span></div><span className="range-label">CONSISTENCY SIGNAL</span></header>
-      <div className="bar-chart" aria-label="Training volume bar chart for last thirty days"><div className="chart-glow" />{[15, 24, 20, 32, 42, 55, 26, 38, 60, 48, 68, 74, 51, 88, 42, 72, 92, 65, 80, 100, 77, 63, 86, 71, 94, 64, 83, 70, 90, 74].map((height, index) => <i style={{ '--bar-height': `${height}%` }} className={index > 25 ? 'bar-active' : ''} key={index} />)}</div>
-      <footer className="volume-summary"><span><strong>{volume.total_kg.toLocaleString()}</strong><small>TOTAL KG</small></span><span><strong>{volume.sessions}</strong><small>SESSIONS</small></span><span><strong>{volume.training_days}</strong><small>TRAINING DAYS</small></span><span><strong>{volume.best_day_kg.toLocaleString()}</strong><small>BEST DAY KG</small></span></footer>
-    </section>
-  </>
 }
 
 function ClientWorkspace({ auth }) {
@@ -118,15 +71,15 @@ function ClientWorkspace({ auth }) {
             : active === 'Health Summary'
               ? <HealthSummaryPage health={client.health} />
               : active === 'Profile'
-                ? <ProfilePage profile={client.profile} onSave={client.saveProfile} />
-                : <Dashboard dashboard={client.dashboard} bodyEntries={client.bodyEntries} openTracker={() => chooseSection('Body Tracker')} navigate={chooseSection} />
+                ? <ProfilePage profile={client.profile} profilePhoto={client.profilePhoto} onSave={client.saveProfile} onUploadPhoto={client.uploadProfilePhoto} />
+                : <ClientDashboard dashboard={client.dashboard} bodyEntries={client.bodyEntries} workout={client.workout} navigate={chooseSection} />
 
   return <div className="os-shell">
       <aside className="os-sidebar">
         <div className="os-brand" aria-label="XForm Coaching OS"><span className="xp-mark">XP</span><span><strong>XFORM</strong><small>COACHING OS</small></span></div>
         <p className="workspace-label">CLIENT PORTAL</p>
         <nav className="os-navigation" aria-label="Client navigation">{navigation.map(([icon, label]) => <button className={active === label ? 'active' : ''} onClick={() => chooseSection(label)} key={label}><Icon name={icon} size={17} /><span>{label}</span></button>)}</nav>
-        <div className="account-block"><div className="account-detail"><span className="account-avatar">{client.profile?.name?.[0] ?? 'M'}</span><span><strong>{client.profile?.name ?? auth.workspace.full_name}</strong><small>{client.profile?.email ?? auth.workspace.email}</small></span></div><button onClick={auth.signOut}>Sign out</button></div>
+        <div className="account-block"><div className="account-detail"><span className="account-avatar">{client.profilePhoto?.url ? <img src={client.profilePhoto.url} alt="" /> : (client.profile?.name?.[0] ?? 'M')}</span><span><strong>{client.profile?.name ?? auth.workspace.full_name}</strong><small>{client.profile?.email ?? auth.workspace.email}</small></span></div><button onClick={auth.signOut}>Sign out</button></div>
       </aside>
 
       <main className="os-main">
@@ -151,8 +104,10 @@ function App() {
   if (!auth.session) return <AuthGate auth={auth} />
   if (!auth.workspace) return <main className="auth-shell"><section className="auth-card"><h1>Workspace unavailable.</h1><p>{auth.error || 'Your account is authenticated but does not have an XForm workspace.'}</p><button className="lime-button" onClick={auth.signOut}>Sign out</button></section></main>
   if (auth.activationRequired) return <AccountActivation auth={auth} />
+  if (auth.workspace.role === 'admin') return <AdminWorkspace account={auth.workspace} accessToken={auth.session.access_token} onSignOut={auth.signOut} />
   if (auth.workspace.role === 'coach') return <CoachWorkspace account={auth.workspace} accessToken={auth.session.access_token} onSignOut={auth.signOut} />
-  return <ClientWorkspace auth={auth} />
+  if (auth.workspace.role === 'client') return <ClientWorkspace auth={auth} />
+  return <main className="auth-shell"><section className="auth-card"><h1>Workspace unavailable.</h1><button onClick={auth.signOut}>Sign out</button></section></main>
 }
 
 export default App
