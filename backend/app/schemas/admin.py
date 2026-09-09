@@ -49,3 +49,12 @@ class CoachOffboarded(BaseModel):
     id: UUID
     is_active: bool
     released_client_count: int
+
+
+class CoachPasswordReset(BaseModel):
+    id: UUID
+    full_name: str
+    email: str
+    initial_password: str
+    email_sent: bool = False
+    audit_recorded: bool

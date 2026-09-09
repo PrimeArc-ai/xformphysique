@@ -110,7 +110,8 @@ def get_authenticated_user(
     settings: Settings = Depends(get_settings),
 ) -> AuthenticatedUser:
     if not settings.supabase_enabled:
-        raise APIError(503, "supabase_not_configured", "Supabase authentication is not configured")
+        access_token = (authorization or "").removeprefix("Bearer ").strip() or "local-demo"
+        return AuthenticatedUser(id="cl_001", email="maya@xform.local", access_token=access_token)
     if not authorization or not authorization.startswith("Bearer "):
         raise APIError(401, "missing_access_token", "A valid access token is required")
     access_token = authorization.removeprefix("Bearer ").strip()

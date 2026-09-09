@@ -4,7 +4,14 @@ from fastapi import APIRouter, Depends, Response
 
 from app.core.config import Settings, get_settings
 from app.core.supabase import AuthenticatedUser, get_authenticated_user
-from app.schemas.admin import AdminCoachList, CoachCreate, CoachCreated, CoachOffboarded, MinimalClientList
+from app.schemas.admin import (
+    AdminCoachList,
+    CoachCreate,
+    CoachCreated,
+    CoachOffboarded,
+    CoachPasswordReset,
+    MinimalClientList,
+)
 from app.services.supabase_admin import SupabaseAdminService
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
@@ -36,3 +43,9 @@ def coach_clients(coach_id: UUID, admin: SupabaseAdminService = Depends(service)
 def offboard_coach(coach_id: UUID, admin: SupabaseAdminService = Depends(service)):
     """Suspend access and end assignments atomically; preserve all client records."""
     return admin.offboard_coach(coach_id)
+
+
+@router.post("/coaches/{coach_id}/reset-password", response_model=CoachPasswordReset)
+def reset_coach_password(coach_id: UUID, admin: SupabaseAdminService = Depends(service)):
+    """Keep the same login email; return a new password once. No email is sent."""
+    return admin.reset_password(coach_id)

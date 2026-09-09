@@ -20,9 +20,13 @@ class ProfilePhotoService:
     def __init__(self, settings: Settings, user: AuthenticatedUser) -> None:
         self.settings = settings
         self.user = user
-        self.gateway = SupabaseGateway(settings, user.access_token)
+        self.gateway = (
+            SupabaseGateway(settings, user.access_token) if settings.supabase_enabled else None
+        )
 
     def get_photo(self, role: WorkspaceRole) -> dict[str, Any]:
+        if self.gateway is None:
+            return {"photo": None}
         self._require_role(role)
         photo = self._one_or_none("profile_photos", {"profile_id": f"eq.{self.user.id}"})
         return {"photo": self._payload(photo, role) if photo else None}

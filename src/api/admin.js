@@ -19,4 +19,5 @@ export const adminApi = {
   clients: (id, token) => request(`/coaches/${id}/clients`, token),
   createCoach: (data, token) => request('/coaches', token, { method: 'POST', body: JSON.stringify(data) }),
   offboardCoach: (id, token) => request(`/coaches/${id}/offboard`, token, { method: 'POST' }),
+  resetPassword: (id, token) => request(`/coaches/${id}/reset-password`, token, { method: 'POST' }),
 }

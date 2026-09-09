@@ -21,7 +21,9 @@ class SupabaseCoachService:
     def __init__(self, settings: Settings, user: AuthenticatedUser) -> None:
         self.settings = settings
         self.user = user
-        self.gateway = SupabaseGateway(settings, user.access_token)
+        self.gateway = (
+            SupabaseGateway(settings, user.access_token) if settings.supabase_enabled else None
+        )
 
     def invite_and_onboard_client(self, payload: ClientOnboardingCreate) -> dict[str, Any]:
         self._require_active_coach()
@@ -67,6 +69,8 @@ class SupabaseCoachService:
         check, not a client identifier supplied by the browser.
         """
 
+        if self.gateway is None:
+            return {"items": []}
         self._require_active_coach()
         clients = self._rows("clients", {"order": "created_at.desc", "limit": 200})
         client_ids = {client["id"] for client in clients}

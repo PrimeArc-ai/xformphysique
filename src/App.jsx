@@ -8,6 +8,7 @@ import useClientData from './hooks/useClientData'
 import useAuth from './hooks/useAuth'
 import AuthGate from './AuthGate'
 import AccountActivation from './AccountActivation'
+import PasswordReset from './PasswordReset'
 
 const navigation = [
   ['dashboard', 'Dashboard'],
@@ -101,6 +102,7 @@ function ClientWorkspace({ auth }) {
 function App() {
   const auth = useAuth()
   if (auth.loading) return <main className="auth-shell"><section className="auth-card"><span className="loading-dot" /><strong>Securing your workspace…</strong></section></main>
+  if (auth.passwordRecovery) return <PasswordReset auth={auth} />
   if (!auth.session) return <AuthGate auth={auth} />
   if (!auth.workspace) return <main className="auth-shell"><section className="auth-card"><h1>Workspace unavailable.</h1><p>{auth.error || 'Your account is authenticated but does not have an XForm workspace.'}</p><button className="lime-button" onClick={auth.signOut}>Sign out</button></section></main>
   if (auth.activationRequired) return <AccountActivation auth={auth} />

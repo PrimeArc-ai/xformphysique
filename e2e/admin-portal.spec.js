@@ -17,6 +17,7 @@ async function mockApp(page, role = 'admin') {
   })
   await page.route('**/api/v1/admin/**', async route => {
     const url = route.request().url()
+    if (url.endsWith('/reset-password')) return route.fulfill({ json: { id: coach.id, full_name: coach.full_name, email: coach.email, initial_password: 'ResetMock!NotReal123', email_sent: false, audit_recorded: true } })
     if (url.endsWith('/offboard')) { roster = roster.map(item => ({ ...item, is_active: false, active_client_count: 0 })); return route.fulfill({ json: { id: coach.id, is_active: false, released_client_count: 1 } }) }
     if (url.endsWith('/clients')) return route.fulfill({ json: { items: [{ client_code: 'XP-0005', assigned_at: '2026-09-06T12:00:00Z', ended_at: null }] } })
     if (route.request().method() === 'POST') {
@@ -66,6 +67,23 @@ test('coach onboarding shows credentials once and no email claim', async ({ page
   await dialog.getByRole('button', { name: 'Done' }).click()
   await expect(page.getByRole('dialog')).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'View Rohan Mehta' })).toBeVisible()
+})
+
+test('password reset keeps the email and shows a new password once', async ({ page }) => {
+  await mockApp(page); await login(page)
+  await page.getByRole('button', { name: 'View Aisha Kapoor' }).click()
+  await page.getByRole('button', { name: 'Reset password', exact: true }).click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog).toContainText('aisha@example.com')
+  await dialog.getByRole('button', { name: 'Cancel' }).click()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await page.getByRole('button', { name: 'Reset password', exact: true }).click()
+  await page.getByRole('button', { name: 'Generate new password' }).click()
+  await expect(dialog.getByLabel('Login email')).toHaveValue('aisha@example.com')
+  await expect(dialog.getByLabel('New password')).toHaveValue('ResetMock!NotReal123')
+  await expect(dialog).toContainText('No email has been sent.')
+  await dialog.getByRole('button', { name: 'Done' }).click()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
 })
 
 test('offboarding requires confirmation and updates status', async ({ page }) => {

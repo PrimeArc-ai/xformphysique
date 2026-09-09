@@ -52,7 +52,7 @@ function OnboardCoach({ token, onClose, onCreated }) {
   </Modal>
 }
 
-function CoachDetail({ coach, token, onClose, onOffboard }) {
+function CoachDetail({ coach, token, onClose, onOffboard, onResetPassword }) {
   const [clients, setClients] = useState(null)
   const [error, setError] = useState('')
   const [retry, setRetry] = useState(0)
@@ -72,8 +72,8 @@ function CoachDetail({ coach, token, onClose, onOffboard }) {
         : !clients.length ? <p className="admin-empty">No client assignments yet.</p>
           : <div className="admin-table-scroll"><table><thead><tr><th>Client code</th><th>Assigned</th><th>Status</th><th>Ended</th></tr></thead>
             <tbody>{clients.map((client, index) => <tr key={`${client.client_code}-${client.assigned_at}-${index}`}><td>{client.client_code}</td><td>{displayDate(client.assigned_at)}</td><td><span className={`admin-status ${client.ended_at ? 'inactive' : ''}`}>{client.ended_at ? 'Ended' : 'Assigned'}</span></td><td>{displayDate(client.ended_at)}</td></tr>)}</tbody></table></div>}
-    {coach.is_active ? <footer><p>Offboarding suspends coach access and ends current assignments. Client accounts and records are kept.</p><button className="admin-danger" onClick={() => onOffboard(coach)}>Offboard coach</button></footer>
-      : <p className="admin-muted">This coach is offboarded. Client records have been preserved.</p>}
+    {coach.is_active ? <footer><p>Reset keeps the same login email and issues a new password. Offboarding suspends coach access and ends current assignments. Client accounts and records are kept.</p><div className="admin-detail-actions"><button className="ghost-button" onClick={() => onResetPassword(coach)}>Reset password</button><button className="admin-danger" onClick={() => onOffboard(coach)}>Offboard coach</button></div></footer>
+      : <footer><p>This coach is offboarded. Client records have been preserved. You can still issue a new password; Coach portal access stays blocked until an operator reactivates them.</p><div className="admin-detail-actions"><button className="ghost-button" onClick={() => onResetPassword(coach)}>Reset password</button></div></footer>}
   </section>
 }
 
@@ -86,6 +86,9 @@ export default function AdminWorkspace({ account, accessToken, onSignOut }) {
   const [selectedId, setSelectedId] = useState(null)
   const [onboarding, setOnboarding] = useState(false)
   const [offboarding, setOffboarding] = useState(null)
+  const [resetting, setResetting] = useState(null)
+  const [resetResult, setResetResult] = useState(null)
+  const [copied, setCopied] = useState(false)
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState('')
   const [notice, setNotice] = useState('')
@@ -110,6 +113,15 @@ export default function AdminWorkspace({ account, accessToken, onSignOut }) {
     } catch (reason) { setActionError(reason.message) }
     finally { setBusy(false) }
   }
+  const resetPassword = async () => {
+    setBusy(true); setActionError(''); setCopied(false)
+    try {
+      const result = await adminApi.resetPassword(resetting.id, accessToken)
+      setResetResult(result)
+    } catch (reason) { setActionError(reason.message) }
+    finally { setBusy(false) }
+  }
+  const closeReset = () => { setResetting(null); setResetResult(null); setCopied(false); setActionError('') }
   return <div className="os-shell admin-shell">
     <aside className="os-sidebar">
       <div className="os-brand"><span className="xp-mark">XP</span><span><strong>XFORM</strong><small>COACHING OS</small></span></div>
@@ -132,10 +144,11 @@ export default function AdminWorkspace({ account, accessToken, onSignOut }) {
               : !visible.length ? <p className="admin-empty">{coaches.length ? 'No coaches match your search.' : 'Your team starts here. Onboard your first coach.'}</p>
                 : <div className="admin-table-scroll"><table><thead><tr><th>Coach</th><th>Status</th><th>Clients</th><th>Joined</th><th><span className="admin-sr-only">Actions</span></th></tr></thead><tbody>{visible.map(coach => <tr key={coach.id} className={coach.id === selectedId ? 'selected' : ''}><td><strong>{coach.full_name}</strong><small>{coach.email}</small><small>{coach.professional_title}</small></td><td><span className={`admin-status ${coach.is_active ? '' : 'inactive'}`}>{coach.is_active ? 'Active' : 'Offboarded'}</span></td><td>{coach.active_client_count}</td><td>{displayDate(coach.created_at)}</td><td><button className="ghost-button" aria-label={`View ${coach.full_name}`} onClick={() => setSelectedId(coach.id)}>View details <span aria-hidden="true">↗</span></button></td></tr>)}</tbody></table></div>}
         </section>
-        {selected && !loading && !error && <CoachDetail key={selected.id} coach={selected} token={accessToken} onClose={() => setSelectedId(null)} onOffboard={coach => { setActionError(''); setOffboarding(coach) }} />}
+        {selected && !loading && !error && <CoachDetail key={selected.id} coach={selected} token={accessToken} onClose={() => setSelectedId(null)} onOffboard={coach => { setActionError(''); setOffboarding(coach) }} onResetPassword={coach => { setActionError(''); setResetResult(null); setCopied(false); setResetting(coach) }} />}
       </div>
     </main>
     {onboarding && <OnboardCoach token={accessToken} onClose={() => setOnboarding(false)} onCreated={reload} />}
     {offboarding && <Modal title="Offboard this coach?" onClose={() => setOffboarding(null)} busy={busy}><p><strong>{offboarding.full_name}</strong> will lose access to the Coach portal and client data, including with an existing session.</p><p className="admin-muted">Their {offboarding.active_client_count} active client assignment(s) will end. Client logins and records will remain. Reassignment requires operator assistance; it is not part of this admin dashboard yet.</p>{actionError && <p className="auth-error" role="alert">{actionError}</p>}<div className="admin-dialog-actions"><button className="ghost-button" disabled={busy} onClick={() => setOffboarding(null)}>Keep coach active</button><button className="admin-danger" disabled={busy} onClick={offboard}>{busy ? 'Offboarding…' : 'Confirm offboarding'}</button></div></Modal>}
+    {resetting && <Modal title={resetResult ? 'New password ready' : 'Reset this password?'} onClose={closeReset} busy={busy}>{resetResult ? <div className="admin-credentials"><p>A new password was generated for <strong>{resetResult.full_name}</strong>. The login email is unchanged.</p><p className="admin-muted">Share these credentials privately. The new password is shown here only until you close this dialog. No email has been sent. The previous password will no longer work.</p><label>Login email<input value={resetResult.email} readOnly /></label><label>New password<input value={resetResult.initial_password} readOnly autoComplete="off" /></label>{!resetResult.audit_recorded && <p role="alert" className="auth-error">Password was reset, but the audit entry could not be recorded. Contact the system operator.</p>}{actionError && <p role="alert" className="auth-error">{actionError}</p>}<div className="admin-dialog-actions"><button className="ghost-button" onClick={async () => { try { await navigator.clipboard.writeText(`Coach portal\nEmail: ${resetResult.email}\nPassword: ${resetResult.initial_password}`); setCopied(true) } catch { setActionError('Clipboard is unavailable. Select and copy the values above.') } }}>{copied ? 'Copied' : 'Copy credentials'}</button><button className="lime-button" onClick={closeReset}>Done</button></div></div> : <><p>Generate a new password for <strong>{resetting.full_name}</strong>?</p><p className="admin-muted">Their login email stays <strong>{resetting.email}</strong>. The previous password will stop working. Share the new password privately; no email will be sent.</p>{actionError && <p className="auth-error" role="alert">{actionError}</p>}<div className="admin-dialog-actions"><button className="ghost-button" disabled={busy} onClick={closeReset}>Cancel</button><button className="lime-button" disabled={busy} onClick={resetPassword}>{busy ? 'Resetting…' : 'Generate new password'}</button></div></>}</Modal>}
   </div>
 }

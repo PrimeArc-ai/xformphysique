@@ -36,7 +36,7 @@ def test_void_rpc_success_is_not_parsed_as_json(monkeypatch):
 
 
 @pytest.mark.parametrize("role", ["coach", "client", None])
-@pytest.mark.parametrize("action", ["list", "clients", "create", "offboard"])
+@pytest.mark.parametrize("action", ["list", "clients", "create", "offboard", "reset"])
 def test_nonadmins_denied_before_any_privileged_operation(monkeypatch, role, action):
     calls = []
 
@@ -51,6 +51,7 @@ def test_nonadmins_denied_before_any_privileged_operation(monkeypatch, role, act
         if action == "list": service.list_coaches()
         elif action == "clients": service.coach_clients(COACH_ID)
         elif action == "offboard": service.offboard_coach(COACH_ID)
+        elif action == "reset": service.reset_password(COACH_ID)
         else: service.create_coach(CoachCreate(full_name="Test Coach", email="coach@example.com"))
     assert raised.value.status_code == 403
     assert calls == ["/rest/v1/profiles"]
@@ -97,6 +98,51 @@ def test_onboarding_sets_server_role_and_does_not_claim_email_delivery(monkeypat
     result = SupabaseAdminService(SETTINGS, USER).create_coach(CoachCreate(full_name="Test Coach", email="coach@example.com"))
     assert result["email_sent"] is False and result["audit_recorded"] is True
     assert result["initial_password"]
+
+
+def test_password_reset_keeps_email_and_returns_new_password_once(monkeypatch):
+    monkeypatch.setattr(SupabaseAdminService, "_require_admin", lambda self: None)
+    monkeypatch.setattr(SupabaseAdminService, "_rpc", lambda self, name, payload=None: [
+        {"id": str(COACH_ID), "full_name": "Aisha Kapoor", "email": "aisha@example.com"}
+    ] if name == "admin_list_coaches" else None)
+    monkeypatch.setattr(SupabaseAdminGateway, "__init__", lambda *a, **k: None)
+    calls = []
+
+    def update(self, method, path, **kwargs):
+        calls.append((method, path, kwargs["json"]))
+        assert method == "PUT" and path == f"/auth/v1/admin/users/{COACH_ID}"
+        assert set(kwargs["json"]) == {"password"}
+        assert len(kwargs["json"]["password"]) >= 24
+        return Result({})
+
+    monkeypatch.setattr(SupabaseAdminGateway, "request", update)
+    result = SupabaseAdminService(SETTINGS, USER).reset_password(COACH_ID)
+    assert result["email"] == "aisha@example.com"
+    assert result["email_sent"] is False and result["audit_recorded"] is True
+    assert result["initial_password"] == calls[0][2]["password"]
+
+
+def test_password_reset_audit_failure_still_returns_credentials(monkeypatch):
+    monkeypatch.setattr(SupabaseAdminService, "_require_admin", lambda self: None)
+    monkeypatch.setattr(SupabaseAdminGateway, "__init__", lambda *a, **k: None)
+    monkeypatch.setattr(SupabaseAdminGateway, "request", lambda *a, **k: Result({}))
+
+    def rpc(self, name, payload=None):
+        if name == "admin_list_coaches":
+            return [{"id": str(COACH_ID), "full_name": "Aisha Kapoor", "email": "aisha@example.com"}]
+        raise APIError(503, "unavailable", "Unavailable")
+
+    monkeypatch.setattr(SupabaseAdminService, "_rpc", rpc)
+    result = SupabaseAdminService(SETTINGS, USER).reset_password(COACH_ID)
+    assert result["initial_password"] and not result["audit_recorded"]
+
+
+def test_password_reset_unknown_coach_is_not_found(monkeypatch):
+    monkeypatch.setattr(SupabaseAdminService, "_require_admin", lambda self: None)
+    monkeypatch.setattr(SupabaseAdminService, "_rpc", lambda *a, **k: [])
+    with pytest.raises(APIError) as raised:
+        SupabaseAdminService(SETTINGS, USER).reset_password(COACH_ID)
+    assert raised.value.status_code == 404
 
 
 def test_audit_failure_does_not_lose_successful_onboarding_credentials(monkeypatch):

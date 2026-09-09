@@ -17,6 +17,7 @@ async function mockWorkspace(page, role, { empty = false, invalidLogin = false, 
   })
   const user = { id: `design-${role}`, email: `${role}@example.com`, aud: 'authenticated', role: 'authenticated', user_metadata: activation ? { xform_invitation: true } : {}, app_metadata: {} }
   await page.route('**/auth/v1/**', route => {
+    if (route.request().url().includes('/recover')) return route.fulfill({ json: {} })
     if (invalidLogin && route.request().url().includes('/token')) return route.fulfill({ status: 400, json: { error: 'invalid_grant', error_description: 'Invalid login credentials' } })
     return route.fulfill({ json: route.request().url().includes('/token') ? { access_token: 'design-only-jwt', refresh_token: 'design-only-refresh', token_type: 'bearer', expires_in: 3600, user } : user })
   })
@@ -30,6 +31,7 @@ async function mockWorkspace(page, role, { empty = false, invalidLogin = false, 
     const data = ['PATCH', 'POST', 'PUT'].includes(request.method()) ? request.postDataJSON() : null
     requests.push({ path, method: request.method(), data })
     const json = value => route.fulfill({ json: value })
+    if (path === '/api/v1/auth/set-password') return json({ updated: true, email: data?.email })
     if (path === '/api/v1/auth/me') {
       const portal = url.searchParams.get('portal')
       return portal && portal !== role ? route.fulfill({ status: 403, json: { error: { message: 'This account cannot access the selected portal.' } } }) : json({ id: user.id, full_name: role === 'client' ? 'Maya Shah' : role === 'coach' ? 'Aarav Rao' : 'Navaneet Deshpande', first_name: 'Maya', email: user.email, role })
@@ -260,6 +262,22 @@ test('login keeps accessible keyboard selection, errors and reduced motion', asy
   await expect(page.getByRole('button', { name: 'Sign In' })).toBeFocused()
   expect(await page.getByRole('button', { name: 'Sign In' }).evaluate(el => getComputedStyle(el).outlineStyle)).toBe('solid')
   await noOverflow(page)
+})
+
+test('forgot password sits under Sign In and asks for email and new password', async ({ page }) => {
+  const proof = await mockWorkspace(page, 'client')
+  await expect(page.getByRole('button', { name: 'Forgot password?' })).toBeVisible()
+  await page.getByRole('button', { name: 'Forgot password?' }).click()
+  await expect(page.getByRole('heading', { name: 'Forgot password.' })).toBeVisible()
+  await page.getByLabel('Email', { exact: true }).fill('maya@example.com')
+  await page.getByLabel('New password', { exact: true }).fill('DesignOnly!123')
+  await page.getByLabel('Confirm password', { exact: true }).fill('Different!123')
+  await page.getByRole('button', { name: 'Save password and sign in' }).click()
+  await expect(page.getByRole('alert')).toHaveText('Passwords do not match.')
+  await page.getByLabel('Confirm password', { exact: true }).fill('DesignOnly!123')
+  await page.getByRole('button', { name: 'Save password and sign in' }).click()
+  await expect(page.getByRole('heading', { name: 'Hello, Maya' })).toBeVisible()
+  expect(proof.requests.some(item => item.path === '/api/v1/auth/set-password' && item.method === 'POST')).toBeTruthy()
 })
 
 test('invitation activation uses the same base design and password validation', async ({ page }) => {
