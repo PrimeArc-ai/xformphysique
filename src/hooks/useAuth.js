@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { supabase, supabaseConfigured } from '../lib/supabase'
+import { supabase, supabaseConfigured, initialRecoveryRedirect } from '../lib/supabase'
 
 const DEMO_WORKSPACES = {
   client: { id: 'cl_001', email: 'maya@xform.local', first_name: 'Maya', full_name: 'Maya Shah', role: 'client' },
@@ -44,6 +44,8 @@ async function getWorkspace(accessToken, portal) {
 export default function useAuth() {
   const [state, setState] = useState({ loading: true, session: null, workspace: null, error: '' })
   const [passwordRecovery, setPasswordRecovery] = useState(false)
+  const [passwordResetComplete, setPasswordResetComplete] = useState(false)
+  const recovering = useRef(initialRecoveryRedirect)
   const signingIn = useRef(false)
   const generation = useRef(0)
 
@@ -67,9 +69,19 @@ export default function useAuth() {
     let active = true
     const hydrate = async (session, event) => {
       if (signingIn.current) return
+      if (linkFailed) return
       const current = ++generation.current
-      if (event === 'PASSWORD_RECOVERY' || (session && recoveryRedirect())) {
+      if (!session && recovering.current) {
+        if (active) {
+          window.history.replaceState(null, '', window.location.pathname)
+          setState({ loading: false, session: null, workspace: null, error: 'This reset link is incomplete or has expired. Request a new link.' })
+        }
+        return
+      }
+      if (session && (event === 'PASSWORD_RECOVERY' || recoveryRedirect() || recovering.current || sessionStorage.getItem('xform.recovery-user') === session.user.id)) {
         if (active && current === generation.current) {
+          recovering.current = true
+          sessionStorage.setItem('xform.recovery-user', session.user.id)
           setPasswordRecovery(true)
           setState({ loading: false, session, workspace: null, error: '' })
         }
@@ -89,14 +101,23 @@ export default function useAuth() {
       }
     }
 
-    supabase.auth.getSession().then(({ data }) => hydrate(data.session)).catch((error) => {
-      if (active) setState({ loading: false, session: null, workspace: null, error: error.message })
+    const linkParams = new URLSearchParams(window.location.hash.replace(/^#/, '') || window.location.search.slice(1))
+    const linkFailed = linkParams.has('error') || linkParams.has('error_code')
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (error || linkFailed) throw error || new Error('This reset link has expired or already been used. Request a new link.')
+      return hydrate(data.session)
+    }).catch((error) => {
+      if (active) setState({ loading: false, session: null, workspace: null, error: linkFailed ? 'This reset link has expired or already been used. Request a new link.' : error.message })
     })
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => { hydrate(session, event) })
     return () => { active = false; listener.subscription.unsubscribe() }
   }, [loadWorkspace])
 
   const signIn = useCallback(async ({ email, password, portal }) => {
+    setPasswordResetComplete(false)
+    recovering.current = false
+    sessionStorage.removeItem('xform.recovery-user')
+    setPasswordRecovery(false)
     if (!supabaseConfigured || !supabase) {
       const demo = demoSession(portal)
       setState({ loading: false, session: demo.session, workspace: demo.workspace, error: '' })
@@ -121,73 +142,44 @@ export default function useAuth() {
 
   const signOut = useCallback(async () => {
     ++generation.current
+    recovering.current = false
+    sessionStorage.removeItem('xform.recovery-user')
     setPasswordRecovery(false)
     if (supabase) await supabase.auth.signOut()
     setState({ loading: false, session: null, workspace: null, error: '' })
   }, [])
 
   const requestPasswordReset = useCallback(async ({ email }) => {
-    if (!supabaseConfigured || !supabase) return { sent: true, localDemo: true }
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    if (!supabaseConfigured || !supabase) throw new Error('Password recovery requires configured authentication. No email was sent from this local demo.')
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
       redirectTo: `${window.location.origin}/`,
     })
     if (error) throw error
     return { sent: true, localDemo: false }
   }, [])
 
-  const setPasswordAndSignIn = useCallback(async ({ email, password, confirmPassword, portal }) => {
-    if (password !== confirmPassword) throw new Error('Passwords do not match.')
-    if (!supabaseConfigured || !supabase) {
-      return signIn({ email, password, portal })
-    }
-    let response
-    try {
-      response = await fetch('/api/v1/auth/set-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        cache: 'no-store',
-        body: JSON.stringify({ email, password, confirm_password: confirmPassword }),
-      })
-    } catch {
-      throw new Error('Unable to reach the XForm server. Check your connection and try again.')
-    }
-    const payload = await response.json().catch(() => null)
-    if (!response.ok) {
-      const fields = Object.values(payload?.error?.fields || {}).join(' ')
-      const message = typeof payload?.error?.message === 'string' ? payload.error.message : null
-      throw new Error(fields || message || 'Unable to update this password.')
-    }
-    return signIn({ email, password, portal })
-  }, [signIn])
-
-  const beginLocalPasswordRecovery = useCallback(() => {
-    setPasswordRecovery(true)
-    setState({
-      loading: false,
-      session: { access_token: 'local-demo-recovery', user: { id: 'local-demo-recovery', email: '', user_metadata: {} } },
-      workspace: null,
-      error: '',
-    })
-  }, [])
-
   const completePasswordReset = useCallback(async ({ password }) => {
-    if (!supabaseConfigured || !supabase) {
+    if (!supabase || !state.session || !passwordRecovery) throw new Error('Your reset link has expired. Request a new one from the sign-in page.')
+    if (password.length < 8) throw new Error('Use at least eight characters.')
+    signingIn.current = true
+    ++generation.current
+    try {
+      const { error } = await supabase.auth.updateUser({ password })
+      if (error) throw error
+      // Suppress USER_UPDATED hydration: recovery ends at confirmation/login,
+      // never at a portal before the user explicitly signs in again.
+      const { error: signOutError } = await supabase.auth.signOut()
+      if (signOutError) await supabase.auth.signOut({ scope: 'local' })
+      recovering.current = false
+      sessionStorage.removeItem('xform.recovery-user')
       setPasswordRecovery(false)
-      setState({ loading: false, session: null, workspace: null, error: '' })
-      return
-    }
-    if (!state.session) throw new Error('Your reset link has expired. Request a new one from the sign-in page.')
-    const { data, error } = await supabase.auth.updateUser({ password })
-    if (error) throw error
-    const session = { ...state.session, user: data.user }
-    const workspace = await loadWorkspace(session)
-    setPasswordRecovery(false)
-    if (window.location.hash || window.location.search.includes('type=recovery')) {
+      setPasswordResetComplete(true)
       window.history.replaceState(null, '', window.location.pathname)
+      setState({ loading: false, session: null, workspace: null, error: '' })
+    } finally {
+      signingIn.current = false
     }
-    setState({ loading: false, session, workspace, error: '' })
-    return workspace
-  }, [loadWorkspace, state.session])
+  }, [passwordRecovery, state.session])
 
   const activateAccount = useCallback(async ({ password }) => {
     if (!supabase || !state.session) throw new Error('Your activation link has expired. Ask your coach to send a new invitation.')
@@ -213,12 +205,11 @@ export default function useAuth() {
     localDemo: !supabaseConfigured,
     activationRequired,
     passwordRecovery,
+    passwordResetComplete,
     signIn,
     signOut,
     activateAccount,
     requestPasswordReset,
-    setPasswordAndSignIn,
-    beginLocalPasswordRecovery,
     completePasswordReset,
   }
 }

@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { coachApi } from './api/coach'
+import PhotoJournal from './progress/PhotoJournal'
+import { CoachCheckIns } from './progress/WeeklyCheckIns'
+import ExerciseHistory from './progress/ExerciseHistory'
 
 const coachNavigation = [
   ['overview', 'Overview'],
@@ -69,11 +72,12 @@ function apiClientToWorkspaceClient(item) {
     initials: name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase(),
     weight: item.latest_weight_kg == null ? '—' : `${item.latest_weight_kg} kg`,
     lastEntry: relativeDate(item.latest_entry_date),
-    checkIn: item.latest_checkin_period_start ? 'Submitted' : 'Due',
+    checkIn: item.check_in_schedule?.current_status || (item.latest_checkin_period_start ? 'Submitted' : 'Due'),
+    schedule: item.check_in_schedule,
     status: item.needs_attention ? 'Needs attention' : 'On track',
     goal: item.primary_goal.replaceAll('_', ' '),
     checkInDay: item.check_in_day[0].toUpperCase() + item.check_in_day.slice(1),
-    attention: item.needs_attention,
+    attention: item.needs_attention || item.check_in_schedule?.current_status === 'overdue',
   }
 }
 
@@ -103,9 +107,10 @@ function CoachOverview({ clients, selectClient, navigate, onCreate }) {
     <section className="coach-metric-grid">
       <article><p>ACTIVE CLIENTS</p><strong>{clients.length}</strong><span>Client workspaces</span></article>
       <article><p>NEEDS REVIEW</p><strong className="attention-text">{attention.length}</strong><span>Missing signal or overdue check-in</span></article>
-      <article><p>PUBLISHED PLANS</p><strong>6</strong><span>Training + nutrition</span></article>
-      <article><p>WEEKLY CHECK-INS</p><strong className="lime-text">75<small>%</small></strong><span>Submitted this cycle</span></article>
+      <article><p>MISSED CHECK-INS</p><strong>{clients.reduce((total, c) => total + (c.schedule?.missed_count || 0), 0)}</strong><span>From each client’s seven-day schedule</span></article>
+      <article><p>WEEKLY CHECK-INS</p><strong className="lime-text">{clients.filter(c => c.schedule?.current_status === 'submitted').length}<small>/{clients.length}</small></strong><span>Submitted this cycle</span></article>
     </section>
+    <section className="panel progress-panel"><h3>Upcoming client check-ins</h3>{clients.length ? clients.map(c => <div className="progress-actions" key={c.id}><span>{c.name} · {c.schedule?.due_on || c.checkInDay} · {c.schedule?.current_status || 'Schedule pending'}<small> · next {c.schedule?.next_due_on || '—'} · {c.schedule?.timezone || ''}</small></span><button onClick={() => selectClient(c.id)}>Review {c.name}</button></div>) : <p>No assigned clients yet.</p>}</section>
     <section className="coach-overview-grid">
       <article className="panel coach-pulse-panel"><header><div><p className="kicker">CLIENT PULSE</p><span>Start with what needs attention.</span></div><button className="quiet-link" onClick={() => navigate('Clients')}>View roster <CoachGlyph name="chevron" /></button></header><div className="coach-table" role="table" aria-label="Client pulse"><div className="coach-table-head" role="row"><span>CLIENT</span><span>WEIGHT</span><span>LAST ENTRY</span><span>CHECK-IN</span><span>STATUS</span><span /></div>{clients.map((client) => <div className="coach-table-row" role="row" key={client.id}><span className="client-cell"><i>{client.initials}</i><b>{client.name}<small>{client.id}</small></b></span><span>{client.weight}</span><span>{client.lastEntry}</span><span>{client.checkIn}</span><Status tone={client.attention ? 'warning' : 'good'}>{client.status}</Status><button className="row-open" onClick={() => selectClient(client.id)}>Review <CoachGlyph name="chevron" /></button></div>)}</div></article>
       <article className="panel coach-attention-panel"><header><div><p className="kicker">ATTENTION QUEUE</p><span>Rule-based preview.</span></div><Status tone="preview">LOCAL</Status></header><div className="attention-list">{attention.map((client) => <button key={client.id} onClick={() => selectClient(client.id)}><span className="attention-icon"><CoachGlyph name="alert" /></span><span><strong>{client.name}</strong><small>{client.status === 'Missing data' ? 'No body entry for 9 days' : 'Weekly check-in due'}</small></span><CoachGlyph name="chevron" /></button>)}</div><p className="panel-footnote">Thresholds and reminders connect when backend arrives.</p></article>
@@ -262,6 +267,9 @@ function CoachNoClient({ loading, onCreate }) {
 }
 
 function PersistedCoachReview({ client, accessToken, navigate, onNotice, bodyOnly = false }) {
+  const loadWorkoutHistory = useCallback(() => coachApi.getWorkoutHistory(client.id, accessToken), [client.id, accessToken])
+  const reviewRequest = useRef(0)
+  const [feedbackRevision, setFeedbackRevision] = useState(0)
   const [review, setReview] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -274,30 +282,23 @@ function PersistedCoachReview({ client, accessToken, navigate, onNotice, bodyOnl
   }, [])
   useEffect(() => () => releasePhotoUrls(), [releasePhotoUrls])
   const load = useCallback(async () => {
+    const requestId = ++reviewRequest.current
     setLoading(true)
     setError('')
     releasePhotoUrls()
     try {
       const result = await coachApi.getClientReview(client.id, accessToken)
-      const progressPhotos = await Promise.all((result.progress_photos || []).map(async (photo) => {
-        try {
-          const url = await coachApi.getPrivatePhotoUrl(photo.content_url, accessToken)
-          photoUrls.current.push(url)
-          return { ...photo, url }
-        } catch {
-          return { ...photo, url: null }
-        }
-      }))
-      setReview({ ...result, progress_photos: progressPhotos })
+      if (requestId !== reviewRequest.current) return
+      setReview(result)
       setDraft({
         client_visible_coach_note: result.coaching_context.client_visible_coach_note || '',
         training_considerations: (result.coaching_context.training_considerations || []).join('\n'),
         safety_notice: result.coaching_context.safety_notice || '',
       })
     } catch (reason) {
-      setError(reason.message || 'Could not load this protected client record.')
+      if (requestId === reviewRequest.current) setError(reason.message || 'Could not load this protected client record.')
     } finally {
-      setLoading(false)
+      if (requestId === reviewRequest.current) setLoading(false)
     }
   }, [accessToken, client.id, releasePhotoUrls])
   useEffect(() => { load() }, [load])
@@ -320,7 +321,7 @@ function PersistedCoachReview({ client, accessToken, navigate, onNotice, bodyOnl
     }
   }
 
-  if (loading) return <CoachNoClient loading />
+  if (loading || (review && review.client.id !== client.id)) return <CoachNoClient loading />
   if (error) return <section className="coach-page"><section className="coach-empty"><CoachGlyph name="alert" /><strong>Protected client record unavailable</strong><span>{error}</span><button className="coach-secondary" type="button" onClick={load}>Try again</button></section></section>
   const bodyEntries = review.body_entries || []
   const checkins = review.checkins || []
@@ -330,10 +331,10 @@ function PersistedCoachReview({ client, accessToken, navigate, onNotice, bodyOnl
   const copy = bodyOnly ? 'Raw entries recorded by this client. No calculated health conclusions are shown.' : 'Live client signals and client-scoped coaching context.'
   return <section className="coach-page coach-has-photo-gallery">
     <CoachHeading eyebrow={`CLIENT REVIEW / ${review.client.client_code}`} title={heading} copy={copy} action={<button className="coach-quiet-button" onClick={() => navigate('Clients')}><CoachGlyph name="clients" />Back to clients</button>} />
-    {!bodyOnly && <article className="panel coach-photo-panel"><header><div><p className="kicker">PROGRESS PHOTOS</p><span>Visible only to this client and their assigned coach.</span></div><Status tone="good">SCOPED</Status></header>{progressPhotos.length ? <div className="coach-photo-gallery">{progressPhotos.map((photo) => <figure key={photo.id}>{photo.url ? <img src={photo.url} alt={`${photo.view} progress photo from ${formatDate(photo.captured_on)}`} /> : <div className="coach-photo-unavailable"><CoachGlyph name="photo" /><span>Image unavailable</span></div>}<figcaption><strong>{photo.view} view</strong><span>{formatDate(photo.captured_on)}</span></figcaption></figure>)}</div> : <div className="coach-empty"><CoachGlyph name="photo" /><strong>No progress photos yet</strong><span>Photos appear here after this client uploads them.</span></div>}</article>}
+    {!bodyOnly && <PhotoJournal key={client.id} clientId={client.id} token={accessToken} profile={review.client} checkIns={checkins} feedbackRevision={feedbackRevision} />}
     <section className="coach-metric-grid coach-three"><article><p>LATEST WEIGHT</p><strong>{latest ? `${latest.weight_kg}` : '—'}{latest && <small> kg</small>}</strong><span>{latest ? `Logged ${formatDate(latest.entry_date)}` : 'No body entry yet'}</span></article><article><p>BODY ENTRIES</p><strong>{bodyEntries.length}</strong><span>Last 100 authorized records</span></article><article><p>CHECK-INS</p><strong className={checkins.length ? 'lime-text' : 'attention-text'}>{checkins.length}</strong><span>{checkins.length ? `Latest ${formatDate(checkins[0].period_start)}` : 'No check-in submitted'}</span></article></section>
     <article className="panel coach-data-table"><header><div><p className="kicker">CLIENT-RECORDED BODY DATA</p><span>Visible only to this client and their assigned coach.</span></div><Status tone="good">LIVE</Status></header>{bodyEntries.length ? <div className="coach-table"><div className="coach-table-head"><span>DATE</span><span>WEIGHT</span><span>WAIST</span><span>HIP</span><span>BODY FAT</span><span>RECORD</span></div>{bodyEntries.map((entry) => <div className="coach-table-row" key={entry.id}><span>{formatDate(entry.entry_date)}</span><span>{entry.weight_kg} kg</span><span>{entry.waist_cm == null ? '—' : `${entry.waist_cm} cm`}</span><span>{entry.hip_cm == null ? '—' : `${entry.hip_cm} cm`}</span><span>{entry.body_fat_pct == null ? '—' : `${entry.body_fat_pct}%`}</span><Status tone="good">CLIENT</Status></div>)}</div> : <div className="coach-empty"><CoachGlyph name="trend" /><strong>No body entry yet</strong><span>Data will appear after this client records a check-in metric.</span></div>}</article>
-    {!bodyOnly && <><section className="coach-review-grid"><article className="panel"><header><div><p className="kicker">WEEKLY CHECK-INS</p><span>Client-reported wellbeing context.</span></div><Status tone={checkins.length ? 'good' : 'warning'}>{checkins.length ? 'RECORDED' : 'DUE'}</Status></header>{checkins.length ? <div className="coach-note-list">{checkins.map((checkin) => <div key={checkin.id}><strong>{formatDate(checkin.period_start)} · energy {checkin.energy_score}/5 · sleep {checkin.sleep_score}/5</strong><p>{checkin.observation}{checkin.concern ? ` Concern: ${checkin.concern}` : ''}</p></div>)}</div> : <div className="coach-empty"><CoachGlyph name="file" /><strong>No weekly check-in</strong><span>Use the configured check-in day for the first request.</span></div>}</article><article className="panel"><header><div><p className="kicker">PHOTO RECORDS</p><span>Images remain private until storage review is approved.</span></div></header><div className="coach-review-callout"><CoachGlyph name="photo" /><div><strong>{review.photo_count} protected photo record{review.photo_count === 1 ? '' : 's'}</strong><span>File bytes and image previews are intentionally not exposed in this release.</span></div></div></article></section><section className="coach-review-grid"><form className="panel coach-setup-panel" onSubmit={saveGuidance}><header><div><p className="kicker">CLIENT-VISIBLE GUIDANCE</p><span>Only the selected client and their assigned coach can read this.</span></div><Status tone="good">SCOPED</Status></header><div className="coach-settings-form"><label className="wide-field">Coach note<textarea rows="4" value={draft.client_visible_coach_note} onChange={(event) => setDraft((current) => ({ ...current, client_visible_coach_note: event.target.value }))} placeholder="Clear, actionable coaching guidance…" /></label><label className="wide-field">Training considerations <small>One per line</small><textarea rows="3" value={draft.training_considerations} onChange={(event) => setDraft((current) => ({ ...current, training_considerations: event.target.value }))} placeholder="e.g. Monitor knee comfort" /></label><label className="wide-field">Safety boundary<textarea rows="2" value={draft.safety_notice} onChange={(event) => setDraft((current) => ({ ...current, safety_notice: event.target.value }))} /></label><footer><span>Saving creates an audit event; it never changes another client’s record.</span><button className="coach-primary" type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save client guidance'}</button></footer></div></form><article className="panel"><header><div><p className="kicker">PRIVATE COACH NOTES</p><span>Not visible to the client.</span></div><Status tone="preview">COACH ONLY</Status></header>{review.private_notes.length ? <div className="coach-note-list">{review.private_notes.map((note) => <div key={note.id}><strong>{formatDate(note.created_at.slice(0, 10))}</strong><p>{note.note}</p></div>)}</div> : <div className="coach-empty"><CoachGlyph name="note" /><strong>No private notes</strong><span>Private notes continue to be separate from client-visible guidance.</span></div>}</article></section></>}
+    {!bodyOnly && <><CoachCheckIns clientId={client.id} token={accessToken} onFeedbackSaved={() => setFeedbackRevision(value => value + 1)} /><ExerciseHistory load={loadWorkoutHistory} /><section className="coach-review-grid"><form className="panel coach-setup-panel" onSubmit={saveGuidance}><header><div><p className="kicker">CLIENT-VISIBLE GUIDANCE</p><span>Only the selected client and their assigned coach can read this.</span></div><Status tone="good">SCOPED</Status></header><div className="coach-settings-form"><label className="wide-field">Coach note<textarea rows="4" value={draft.client_visible_coach_note} onChange={(event) => setDraft((current) => ({ ...current, client_visible_coach_note: event.target.value }))} placeholder="Clear, actionable coaching guidance…" /></label><label className="wide-field">Training considerations <small>One per line</small><textarea rows="3" value={draft.training_considerations} onChange={(event) => setDraft((current) => ({ ...current, training_considerations: event.target.value }))} placeholder="e.g. Monitor knee comfort" /></label><label className="wide-field">Safety boundary<textarea rows="2" value={draft.safety_notice} onChange={(event) => setDraft((current) => ({ ...current, safety_notice: event.target.value }))} /></label><footer><span>Saving creates an audit event; it never changes another client’s record.</span><button className="coach-primary" type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save client guidance'}</button></footer></div></form><article className="panel"><header><div><p className="kicker">PRIVATE COACH NOTES</p><span>Not visible to the client.</span></div><Status tone="preview">COACH ONLY</Status></header>{review.private_notes.length ? <div className="coach-note-list">{review.private_notes.map((note) => <div key={note.id}><strong>{formatDate(note.created_at.slice(0, 10))}</strong><p>{note.note}</p></div>)}</div> : <div className="coach-empty"><CoachGlyph name="note" /><strong>No private notes</strong><span>Private notes continue to be separate from client-visible guidance.</span></div>}</article></section></>}
   </section>
 }
 

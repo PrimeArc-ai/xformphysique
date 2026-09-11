@@ -22,8 +22,10 @@ class FakeResponse:
 
 def settings() -> Settings:
     return Settings(
+        _env_file=None,
         supabase_url="https://example.supabase.co",
         supabase_publishable_key="sb_publishable_test",
+        r2_account_id="test-account", r2_access_key_id="test-key", r2_secret_access_key="test-secret", r2_bucket_name="test-bucket",
     )
 
 
@@ -167,6 +169,7 @@ def test_assigned_coach_can_read_only_their_clients_r2_photo(
                 "select": "*",
                 "id": "eq.photo-a",
                 "client_id": "eq.client-a",
+                "deleted_at": "is.null",
             }
             return FakeResponse(
                 200,

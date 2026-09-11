@@ -1,10 +1,12 @@
 const displayDate = value => value ? new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short' }).format(new Date(`${value}T12:00:00`)) : '—'
 
+import { CheckInSchedule } from './progress/WeeklyCheckIns'
+
 function Arrow() {
   return <span aria-hidden="true">→</span>
 }
 
-export default function ClientDashboard({ dashboard, bodyEntries, workout, navigate }) {
+export default function ClientDashboard({ dashboard, bodyEntries, workout, navigate, schedule }) {
   const body = dashboard.body
   const trend = (body.trend ?? []).filter(entry => Number.isFinite(entry.weight_kg)).slice(-7)
   const current = body.current_weight_kg ?? bodyEntries[0]?.weight ?? null
@@ -23,6 +25,7 @@ export default function ClientDashboard({ dashboard, bodyEntries, workout, navig
       <div><p className="kicker">YOUR PERSONAL COACHING WORKSPACE</p><h2 id="dashboard-title">Progress, <span>in motion.</span></h2><p>Your body signal, training and next steps. One clear view.</p></div>
       <button className="lime-button" onClick={() => navigate('Body Tracker')}><span aria-hidden="true">+</span> Log body entry</button>
     </header>
+    <CheckInSchedule schedule={schedule} />
     <div className="precision-dashboard-grid">
       <div className="precision-main-column">
         <article className="panel precision-body-panel">

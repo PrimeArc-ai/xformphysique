@@ -20,7 +20,7 @@ def set_password(
     response: Response,
     settings: Settings = Depends(get_settings),
 ):
-    """Set a new Auth password from email + password + confirm. Development only."""
+    """Retired endpoint; always rejects unauthenticated password replacement."""
 
     response.headers["Cache-Control"] = "private, no-store"
     return set_password_by_email(settings, payload)

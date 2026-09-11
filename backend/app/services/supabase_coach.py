@@ -10,6 +10,7 @@ from app.core.errors import APIError
 from app.core.supabase import AuthenticatedUser, SupabaseAdminGateway, SupabaseGateway
 from app.schemas.coach import ClientCoachingContextUpdate, ClientOnboardingCreate
 from app.services.r2_photo_storage import R2PhotoStorage
+from app.services.progress import schedule
 
 
 logger = logging.getLogger(__name__)
@@ -77,7 +78,13 @@ class SupabaseCoachService:
         profiles = self._rows("profiles", {"role": "eq.client", "limit": 200})
         profiles_by_id = {profile["id"]: profile for profile in profiles if profile["id"] in client_ids}
         body_entries = self._rows("body_entries", {"order": "entry_date.desc", "limit": 5000})
-        checkins = self._rows("weekly_checkins", {"order": "period_start.desc", "limit": 5000})
+        checkins, offset = [], 0
+        while True:
+            page = self._rows("weekly_checkins", {"order": "period_start.desc,id.desc", "limit": 500, "offset": offset})
+            checkins.extend(page)
+            if len(page) < 500:
+                break
+            offset += 500
         latest_body = self._latest_by_client(body_entries, "entry_date")
         latest_checkin = self._latest_by_client(checkins, "period_start")
 
@@ -92,7 +99,8 @@ class SupabaseCoachService:
             latest_entry = latest_body.get(client_id)
             latest_checkin_row = latest_checkin.get(client_id)
             items.append(
-                self._client_list_item(client, profile, latest_entry, latest_checkin_row)
+                {**self._client_list_item(client, profile, latest_entry, latest_checkin_row),
+                 "check_in_schedule": schedule(client, [c for c in checkins if c["client_id"] == client_id])}
             )
         return {"items": items}
 
@@ -117,7 +125,7 @@ class SupabaseCoachService:
             "coach_private_notes",
             {"client_id": f"eq.{client_id}", "order": "created_at.desc", "limit": 20},
         )
-        photos = self._rows("progress_photos", {"client_id": f"eq.{client_id}", "limit": 100})
+        photos = self._rows("progress_photos", {"client_id": f"eq.{client_id}", "deleted_at": "is.null", "limit": 100})
         latest_entry = body_entries[0] if body_entries else None
         latest_checkin = checkins[0] if checkins else None
         return {
@@ -137,7 +145,7 @@ class SupabaseCoachService:
         self._one("clients", {"id": f"eq.{client_id}"}, "client_not_found")
         photo = self._one(
             "progress_photos",
-            {"id": f"eq.{photo_id}", "client_id": f"eq.{client_id}"},
+            {"id": f"eq.{photo_id}", "client_id": f"eq.{client_id}", "deleted_at": "is.null"},
             "photo_not_found",
         )
         if photo.get("storage_provider") == "r2":
@@ -190,6 +198,20 @@ class SupabaseCoachService:
         coach = self._one("coaches", {"id": f"eq.{self.user.id}"}, "coach_workspace_not_found")
         if not coach.get("is_active"):
             raise APIError(403, "coach_inactive", "This coach workspace is inactive")
+
+    def progress_service(self, client_id: str):
+        """Reuse progress reads under the SAME coach JWT, never a service-role token."""
+        from app.services.supabase_client import SupabaseClientService
+        self._require_active_coach()
+        self._one("clients", {"id": f"eq.{client_id}"}, "client_not_found")
+        service = SupabaseClientService(self.settings, self.user)
+        service.client_id = client_id
+        return service
+
+    def save_weekly_feedback(self, client_id, checkin_id, payload):
+        self.progress_service(client_id)
+        return self.gateway.request("POST", "/rest/v1/rpc/save_weekly_feedback", json={
+            "p_client_id": client_id, "p_checkin_id": checkin_id, "p_feedback": payload.model_dump()}).json()
 
     def _configure_client(
         self, admin: SupabaseAdminGateway, client_id: str, payload: ClientOnboardingCreate

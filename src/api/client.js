@@ -63,22 +63,25 @@ export const clientApi = {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ weight_kg: entry.weight, waist_cm: entry.waist }),
   }),
-  getCheckIns: () => request('/check-ins?limit=12'),
+  getCheckIns: (offset = 0) => request(`/check-ins?limit=12&offset=${offset}`),
   saveCheckIn: (checkIn) => request('/check-ins/current', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(checkIn),
   }),
-  getPhotos: () => request('/progress-photos?limit=100'),
+  getPhotos: (offset = 0) => request(`/progress-photos?limit=50&offset=${offset}`),
+  deletePhoto: (id) => request(`/progress-photos/${id}`, { method: 'DELETE' }),
+  getWorkoutHistory: () => request('/workout-history'),
   getPrivatePhotoUrl: (contentPath) => privateObjectUrl(contentPath, 'private progress photo'),
-  uploadPhoto: (file, view, capturedOn) => {
+  uploadPhoto: (file, view, capturedOn, replacePhotoId) => {
     const form = new FormData()
     form.set('file', file)
     form.set('view', view)
     form.set('captured_on', capturedOn)
+    if (replacePhotoId) form.set('replace_photo_id', replacePhotoId)
     return request('/progress-photos', { method: 'POST', body: form })
   },
-  getNutritionPlan: (day) => optionalRequest(`/nutrition/active-plan?date=${day}`),
+  getNutritionPlan: (day) => optionalRequest(`/nutrition/active-plan${day ? `?date=${day}` : ''}`),
   saveMealAdherence: (mealId, status, day) => request(`/nutrition/meals/${mealId}/adherence`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
@@ -89,7 +92,7 @@ export const clientApi = {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ meal_id: mealId }),
   }),
-  getWorkout: (day) => optionalRequest(`/workout-sessions/today?date=${day}`),
+  getWorkout: (day) => optionalRequest(`/workout-sessions/today${day ? `?date=${day}` : ''}`),
   saveWorkout: (sessionId, payload) => request(`/workout-sessions/${sessionId}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },

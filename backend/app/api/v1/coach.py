@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, File, UploadFile, status
+from fastapi import APIRouter, Depends, File, UploadFile, status, Query
 from fastapi.responses import Response
 
 from app.core.config import Settings, get_settings
 from app.core.supabase import AuthenticatedUser, get_authenticated_user
-from app.schemas.client import ErrorResponse
+from app.schemas.client import ErrorResponse, WeeklyFeedback, CheckInsResponse, ProgressPhotosResponse
 from app.schemas.coach import (
     ClientCoachingContextResponse,
     ClientCoachingContextUpdate,
@@ -26,6 +26,37 @@ ERROR_RESPONSES = {
     404: {"model": ErrorResponse},
     422: {"model": ErrorResponse},
 }
+
+
+@router.get("/clients/{client_id}/check-ins", response_model=CheckInsResponse)
+def client_checkins(client_id: str, limit: int = Query(12, ge=1, le=52), offset: int = Query(0, ge=0),
+                    settings: Settings = Depends(get_settings), user: AuthenticatedUser = Depends(get_authenticated_user)):
+    return SupabaseCoachService(settings, user).progress_service(client_id).list_checkins(limit, offset)
+
+
+@router.put("/clients/{client_id}/check-ins/{checkin_id}/feedback")
+def weekly_feedback(client_id: str, checkin_id: str, payload: WeeklyFeedback,
+                    settings: Settings = Depends(get_settings), user: AuthenticatedUser = Depends(get_authenticated_user)):
+    return SupabaseCoachService(settings, user).save_weekly_feedback(client_id, checkin_id, payload)
+
+
+@router.get("/clients/{client_id}/workout-history")
+def workout_history(client_id: str, settings: Settings = Depends(get_settings), user: AuthenticatedUser = Depends(get_authenticated_user)):
+    return SupabaseCoachService(settings, user).progress_service(client_id).workout_history()
+
+
+@router.get("/clients/{client_id}/progress-photos", response_model=ProgressPhotosResponse)
+def client_photos(client_id: str, limit: int = Query(50, ge=1, le=100), offset: int = Query(0, ge=0),
+                  settings: Settings = Depends(get_settings), user: AuthenticatedUser = Depends(get_authenticated_user)):
+    result = SupabaseCoachService(settings, user).progress_service(client_id).list_progress_photos(None, limit, offset)
+    for photo in result["items"]:
+        photo["content_url"] = f"/api/v1/coach/clients/{client_id}/progress-photos/{photo['id']}/content"
+    return result
+
+
+@router.delete("/clients/{client_id}/progress-photos/{photo_id}")
+def delete_client_photo(client_id: str, photo_id: str, settings: Settings = Depends(get_settings), user: AuthenticatedUser = Depends(get_authenticated_user)):
+    return SupabaseCoachService(settings, user).progress_service(client_id).delete_progress_photo(photo_id)
 
 
 @router.get("/clients", response_model=CoachClientListResponse, responses=ERROR_RESPONSES)

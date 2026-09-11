@@ -7,6 +7,7 @@ const initialData = {
   dashboard: null,
   bodyEntries: [],
   checkIns: [],
+  checkInSchedule: null,
   photos: [],
   nutrition: null,
   workout: null,
@@ -61,13 +62,13 @@ export default function useClientData({ enabled, accessToken }) {
         clientApi.getBodyEntries(),
         clientApi.getCheckIns(),
         clientApi.getPhotos(),
-        clientApi.getNutritionPlan(today),
-        clientApi.getWorkout(today),
+        clientApi.getNutritionPlan(),
+        clientApi.getWorkout(),
         clientApi.getHealthSummary(),
         clientApi.getProfile(),
         clientApi.getProfilePhoto(),
       ])
-      const hydratedPhotos = await Promise.all(photos.items.map(toPhoto))
+      const hydratedPhotos = photos.items
       const profilePhoto = profilePhotoResponse.photo
         ? { ...profilePhotoResponse.photo, url: await clientApi.getPrivateProfilePhotoUrl(profilePhotoResponse.photo.content_url) }
         : null
@@ -77,6 +78,7 @@ export default function useClientData({ enabled, accessToken }) {
         dashboard,
         bodyEntries: body.items.map(toBodyEntry),
         checkIns: checkIns.items.map(toCheckIn),
+        checkInSchedule: checkIns.schedule,
         photos: hydratedPhotos,
         nutrition,
         workout,
@@ -100,6 +102,17 @@ export default function useClientData({ enabled, accessToken }) {
     }
   }, [accessToken, load, releasePhotoUrls])
 
+  useEffect(() => {
+    if (!enabled || !data.checkInSchedule?.today) return undefined
+    const checkDay = () => {
+      const localDay = new Intl.DateTimeFormat('en-CA', { timeZone: data.profile?.timezone || 'UTC', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
+      if (localDay !== data.checkInSchedule.today) load()
+    }
+    const timer = setInterval(checkDay, 30000)
+    window.addEventListener('focus', checkDay)
+    return () => { clearInterval(timer); window.removeEventListener('focus', checkDay) }
+  }, [enabled, data.checkInSchedule?.today, data.profile?.timezone, load])
+
   const saveBodyEntry = useCallback(async (entry) => {
     const saved = await clientApi.saveBodyEntry(entry)
     const [dashboard, body] = await Promise.all([clientApi.getDashboard(), clientApi.getBodyEntries()])
@@ -118,6 +131,7 @@ export default function useClientData({ enabled, accessToken }) {
       ...current,
       dashboard,
       checkIns: checkIns.items.map(toCheckIn),
+      checkInSchedule: checkIns.schedule,
       health,
     }))
     return saved
@@ -132,18 +146,19 @@ export default function useClientData({ enabled, accessToken }) {
   }, [])
 
   const saveMealAdherence = useCallback(async (mealId, status) => {
-    const saved = await clientApi.saveMealAdherence(mealId, status, today)
-    const nutrition = await clientApi.getNutritionPlan(today)
+    const mealDay = data.nutrition?.date || today
+    const saved = await clientApi.saveMealAdherence(mealId, status, mealDay)
+    const nutrition = await clientApi.getNutritionPlan()
     setData((current) => ({ ...current, nutrition }))
     return saved
-  }, [])
+  }, [data.nutrition?.date])
 
   const getRecipeGuide = useCallback((mealId) => clientApi.getRecipeGuide(mealId), [])
 
   const saveWorkout = useCallback(async (sessionId, payload) => {
     const saved = await clientApi.saveWorkout(sessionId, payload)
     const [workout, dashboard] = await Promise.all([
-      clientApi.getWorkout(today),
+      clientApi.getWorkout(),
       clientApi.getDashboard(),
     ])
     setData((current) => ({ ...current, workout, dashboard }))
@@ -152,8 +167,8 @@ export default function useClientData({ enabled, accessToken }) {
 
   const saveProfile = useCallback(async (profile) => {
     const saved = await clientApi.saveProfile(profile)
-    const profileResponse = await clientApi.getProfile()
-    setData((current) => ({ ...current, profile: profileResponse }))
+    const [profileResponse, checkIns] = await Promise.all([clientApi.getProfile(), clientApi.getCheckIns()])
+    setData((current) => ({ ...current, profile: profileResponse, checkInSchedule: checkIns.schedule }))
     return saved
   }, [])
 

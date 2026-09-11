@@ -15,31 +15,12 @@ logger = logging.getLogger(__name__)
 
 
 def set_password_by_email(settings: Settings, payload: DirectPasswordSet) -> dict:
-    """Development-only: write a chosen password to Auth so the same credentials can sign in.
+    """Retired unsafe route: knowing an email never proves account ownership.
 
-    SMTP is not used. Anyone who knows an account email can set its password while this
-    path is enabled, so it stays off outside development.
+    Keep a fail-closed response for older frontends, including development servers
+    connected to real accounts or shared through a tunnel.
     """
-
-    if settings.environment != "development":
-        raise APIError(403, "direct_password_set_disabled", "Direct password set is only available in development.")
-    if payload.password != payload.confirm_password:
-        raise APIError(422, "password_mismatch", "Passwords do not match.")
-    if not settings.supabase_admin_enabled:
-        return {"updated": True, "email": str(payload.email).lower()}
-
-    email = str(payload.email).lower()
-    admin = SupabaseAdminGateway(settings)
-    rows = admin.request(
-        "GET",
-        "/rest/v1/profiles",
-        params={"email": f"ilike.{email}", "select": "id,email", "limit": "1"},
-    ).json()
-    if not rows:
-        raise APIError(404, "account_not_found", "No XForm account uses that email.")
-    user_id = rows[0]["id"]
-    admin.request("PUT", f"/auth/v1/admin/users/{user_id}", json={"password": payload.password})
-    return {"updated": True, "email": email}
+    raise APIError(410, "direct_password_set_disabled", "Request a secure password reset email from the sign-in page.")
 
 
 class SupabaseAdminService:

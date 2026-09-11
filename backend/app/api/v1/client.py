@@ -71,8 +71,8 @@ def upsert_body_entry(entry_date: date, payload: BodyEntryUpsert, service: Servi
 
 
 @router.get("/check-ins", response_model=CheckInsResponse, responses=ERROR_RESPONSES)
-def list_checkins(service: Service, limit: Annotated[int, Query(ge=1, le=52)] = 12):
-    return service.list_checkins(limit)
+def list_checkins(service: Service, limit: Annotated[int, Query(ge=1, le=52)] = 12, offset: Annotated[int, Query(ge=0)] = 0):
+    return service.list_checkins(limit, offset)
 
 
 @router.put("/check-ins/current", response_model=CheckInSaveResponse, responses=ERROR_RESPONSES)
@@ -83,10 +83,11 @@ def upsert_current_checkin(payload: CheckInUpsert, service: Service):
 @router.get("/progress-photos", response_model=ProgressPhotosResponse, responses=ERROR_RESPONSES)
 def list_progress_photos(
     service: Service,
-    view: Annotated[Literal["front", "side", "back"] | None, Query()] = None,
+    view: Annotated[Literal["front", "side", "back", "front_double_bicep", "back_double_bicep"] | None, Query()] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
 ):
-    return service.list_progress_photos(view, limit)
+    return service.list_progress_photos(view, limit, offset)
 
 
 @router.post(
@@ -97,11 +98,15 @@ def list_progress_photos(
 async def create_progress_photo(
     service: Service,
     file: Annotated[UploadFile, File(description="JPEG, PNG or WebP image up to 10 MB")],
-    view: Annotated[Literal["front", "side", "back"], Form()],
+    view: Annotated[Literal["front", "side", "back", "front_double_bicep", "back_double_bicep"], Form()],
     captured_on: Annotated[date, Form()],
+    replace_photo_id: Annotated[str | None, Form()] = None,
 ):
     if hasattr(service, "upload_progress_photo"):
-        return await service.upload_progress_photo(file, view, captured_on)
+        try:
+            return await service.upload_progress_photo(file, view, captured_on, replace_photo_id)
+        finally:
+            await file.close()
     storage = LocalPhotoStorage()
     storage_key, byte_size, content_type = await storage.save(file)
     try:
@@ -112,6 +117,7 @@ async def create_progress_photo(
             storage_key=storage_key,
             content_type=content_type,
             byte_size=byte_size,
+            replace_photo_id=replace_photo_id,
         )
     except Exception:
         storage.delete(storage_key)
@@ -120,11 +126,16 @@ async def create_progress_photo(
         await file.close()
 
 
+@router.delete("/progress-photos/{photo_id}", responses=ERROR_RESPONSES)
+def delete_progress_photo(photo_id: str, service: Service):
+    return service.delete_progress_photo(photo_id)
+
+
 @router.get("/progress-photos/{photo_id}/content", responses={404: {"model": ErrorResponse}})
 def get_progress_photo_content(photo_id: str, service: Service):
     if hasattr(service, "get_photo_content"):
         content, media_type, file_name = service.get_photo_content(photo_id)
-        return Response(content=content, media_type=media_type, headers={"Content-Disposition": f'inline; filename="{file_name}"'})
+        return Response(content=content, media_type=media_type, headers={"Content-Disposition": f'inline; filename="{file_name}"', "Cache-Control": "private, no-store"})
     photo = service.get_photo(photo_id)
     path = LocalPhotoStorage().path_for(photo.storage_key)
     return FileResponse(path, media_type=photo.content_type, filename=photo.file_name)
@@ -135,7 +146,7 @@ def get_active_nutrition_plan(
     service: Service,
     plan_date: Annotated[date | None, Query(alias="date")] = None,
 ):
-    return service.get_active_nutrition_plan(plan_date or date.today())
+    return service.get_active_nutrition_plan(plan_date or service.today())
 
 
 @router.put(
@@ -157,7 +168,12 @@ def get_today_workout(
     service: Service,
     session_date: Annotated[date | None, Query(alias="date")] = None,
 ):
-    return service.get_workout_for_date(session_date or date.today())
+    return service.get_workout_for_date(session_date or service.today())
+
+
+@router.get("/workout-history", responses=ERROR_RESPONSES)
+def get_workout_history(service: Service):
+    return service.workout_history()
 
 
 @router.put(

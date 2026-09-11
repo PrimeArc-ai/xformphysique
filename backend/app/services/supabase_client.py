@@ -10,6 +10,7 @@ from app.core.config import Settings
 from app.core.errors import APIError
 from app.core.supabase import AuthenticatedUser, SupabaseGateway
 from app.services.r2_photo_storage import R2PhotoStorage
+from app.services.progress import local_today, schedule, exercise_history
 from app.schemas.client import (
     BodyEntryUpsert,
     CheckInUpsert,
@@ -56,7 +57,7 @@ class SupabaseClientService:
 
     def get_dashboard(self) -> dict[str, Any]:
         client, profile = self._client_and_profile()
-        today = date.today()
+        today = local_today(client["timezone"])
         body = self._rows("body_entries", {"client_id": f"eq.{self.client_id}", "order": "entry_date.desc", "limit": 7})
         latest = body[0] if body else None
         checkins = self._rows("weekly_checkins", {"client_id": f"eq.{self.client_id}", "order": "period_start.desc"})
@@ -124,20 +125,36 @@ class SupabaseClientService:
         response["summary"] = self._body_summary()
         return response
 
-    def list_checkins(self, limit: int) -> dict[str, Any]:
+    def today(self) -> date:
         client, _ = self._client_and_profile()
-        today = date.today()
-        entries = self._rows("weekly_checkins", {"client_id": f"eq.{self.client_id}", "order": "period_start.desc", "limit": limit})
+        return local_today(client["timezone"])
+
+    def _all_rows(self, table: str, params: dict) -> list[dict]:
+        result, offset = [], 0
+        while True:
+            page = self._rows(table, {**params, "limit": 500, "offset": offset})
+            result.extend(page)
+            if len(page) < 500:
+                return result
+            offset += 500
+
+    def list_checkins(self, limit: int, offset: int = 0) -> dict[str, Any]:
+        client, _ = self._client_and_profile()
+        entries = self._all_rows("weekly_checkins", {"client_id": f"eq.{self.client_id}", "order": "period_start.desc,id.desc"})
+        page = entries[offset:offset + limit]
+        feedback = self._rows("weekly_checkin_feedback", {"checkin_id": "in.(" + ",".join(e["id"] for e in page) + ")"}) if page else []
+        by_id = {f["checkin_id"]: f for f in feedback}
         return {
-            "schedule": {"day_of_week": client["check_in_day"], "current_status": "submitted" if any(item["period_start"] == _week_start(today).isoformat() for item in entries) else "due", "due_on": _next_weekday(today, client["check_in_day"])},
-            "items": [self._checkin_payload(item) for item in entries],
+            "schedule": schedule(client, entries),
+            "items": [{**self._checkin_payload(item), "feedback": by_id.get(item["id"])} for item in page],
+            "has_more": len(entries) > offset + limit,
         }
 
     def upsert_current_checkin(self, payload: CheckInUpsert) -> dict[str, Any]:
         rows = self._write(
             "POST",
             "weekly_checkins",
-            {"client_id": self.client_id, "period_start": _week_start(date.today()).isoformat(), "submitted_at": datetime.now(timezone.utc).isoformat(), **payload.model_dump()},
+            {"client_id": self.client_id, "period_start": _week_start(self.today()).isoformat(), "submitted_at": datetime.now(timezone.utc).isoformat(), **payload.model_dump()},
             params={"on_conflict": "client_id,period_start"},
             prefer="resolution=merge-duplicates,return=representation",
         )
@@ -145,26 +162,53 @@ class SupabaseClientService:
         response["status"] = "submitted"
         return response
 
-    def list_progress_photos(self, view: str | None, limit: int) -> dict[str, Any]:
-        params: dict[str, Any] = {"client_id": f"eq.{self.client_id}", "order": "captured_on.desc,created_at.desc", "limit": limit}
+    def list_progress_photos(self, view: str | None, limit: int, offset: int = 0) -> dict[str, Any]:
+        params: dict[str, Any] = {"client_id": f"eq.{self.client_id}", "deleted_at": "is.null", "order": "captured_on.desc,created_at.desc,id.desc", "limit": limit + 1, "offset": offset}
         if view:
             params["view"] = f"eq.{view}"
-        return {"items": [self._photo_payload(item) for item in self._rows("progress_photos", params)]}
+        rows = self._rows("progress_photos", params)
+        return {"items": [self._photo_payload(item) for item in rows[:limit]], "has_more": len(rows) > limit}
 
-    async def upload_progress_photo(self, file: UploadFile, view: str, captured_on: date) -> dict[str, Any]:
-        if captured_on > date.today():
+    async def upload_progress_photo(self, file: UploadFile, view: str, captured_on: date, replace_photo_id: str | None = None) -> dict[str, Any]:
+        if captured_on > self.today():
             raise APIError(422, "future_date", "Photo capture date cannot be in future")
         storage = R2PhotoStorage(self.settings)
         storage_path, byte_size, content_type, safe_filename = await storage.save(file, self.client_id)
         try:
-            rows = self._write("POST", "progress_photos", {"client_id": self.client_id, "view": view, "captured_on": captured_on.isoformat(), "original_filename": safe_filename, "storage_path": storage_path, "storage_provider": "r2", "content_type": content_type, "byte_size": byte_size})
-            return self._photo_payload(rows[0])
-        except Exception:
-            storage.delete(storage_path)
-            raise
+            photo = self.gateway.request("POST", "/rest/v1/rpc/save_progress_photo", json={"p_photo": {"client_id": self.client_id, "view": view, "captured_on": captured_on.isoformat(), "original_filename": safe_filename, "storage_path": storage_path, "storage_provider": "r2", "content_type": content_type, "byte_size": byte_size}, "p_replace_id": replace_photo_id}).json()
+        except Exception as failure:
+            # A lost response may follow a successful DB commit. Never delete
+            # image bytes until a read proves that no metadata references them.
+            try:
+                photo = self._one_or_none("progress_photos", {"client_id": f"eq.{self.client_id}", "storage_path": f"eq.{storage_path}"})
+            except Exception:
+                raise failure
+            if photo is None:
+                storage.delete(storage_path)
+                raise failure
+        pending = False
+        if replace_photo_id:
+            try:
+                pending = self.delete_progress_photo(replace_photo_id)["cleanup_pending"]
+            except APIError:
+                pending = True
+        return {**self._photo_payload(photo), "cleanup_pending": pending}
+
+    def delete_progress_photo(self, photo_id: str) -> dict:
+        photo = self.gateway.request("POST", "/rest/v1/rpc/retire_progress_photo", json={"p_client_id": self.client_id, "p_photo_id": photo_id}).json()
+        pending = False
+        try:
+            if photo.get("storage_provider") == "r2":
+                R2PhotoStorage(self.settings).delete(photo["storage_path"], strict=True)
+            else:
+                # Retired legacy images stay inaccessible; a storage admin can purge later.
+                pending = True
+        except APIError:
+            pending = True
+        return {"id": photo_id, "deleted": True, "cleanup_pending": pending}
 
     def get_photo_content(self, photo_id: str) -> tuple[bytes, str, str]:
-        photo = self._one("progress_photos", {"id": f"eq.{photo_id}", "client_id": f"eq.{self.client_id}"}, "photo_not_found", "Progress photo not found")
+        photo = self._one("progress_photos", {"id": f"eq.{photo_id}", "client_id": f"eq.{self.client_id}", "deleted_at": "is.null"}, "photo_not_found", "Progress photo not found")
         if photo.get("storage_provider") == "r2":
             return R2PhotoStorage(self.settings).read(photo["storage_path"]), photo["content_type"], photo["original_filename"]
         response = self.gateway.request("GET", f"/storage/v1/object/authenticated/progress-photos/{quote(photo['storage_path'])}")
@@ -183,10 +227,10 @@ class SupabaseClientService:
         for item in ingredients:
             ingredients_by_meal.setdefault(item["meal_id"], []).append({"name": item["ingredient_name"], "quantity": _number(item["quantity"]), "unit": item["unit"]})
         restrictions = self._rows("nutrition_plan_restrictions", {"plan_id": f"eq.{plan['id']}"})
-        return {"plan_id": plan["id"], "name": plan["name"], "date": plan_date, "daily_targets": {"calories_kcal": int(plan["calories_kcal"]), "protein_g": int(plan["protein_g"]), "carbs_g": int(plan["carbs_g"]), "fat_g": int(plan["fat_g"])}, "restrictions": [item["restriction"] for item in restrictions], "meals": [{"id": meal["id"], "time": meal["meal_time"], "name": meal["name"], "ingredients": ingredients_by_meal.get(meal["id"], []), "calories_kcal": meal["calories_kcal"], "macros": {"protein_g": meal["protein_g"], "carbs_g": meal["carbs_g"], "fat_g": meal["fat_g"]}, "adherence_status": status_by_meal.get(meal["id"], "pending")} for meal in meals]}
+        return {"plan_id": plan["id"], "name": plan["name"], "date": plan_date, "daily_targets": {"calories_kcal": int(plan["calories_kcal"]), "protein_g": int(plan["protein_g"]), "carbs_g": int(plan["carbs_g"]), "fat_g": int(plan["fat_g"])}, "restrictions": [item["restriction"] for item in restrictions], "meals": [{"id": meal["id"], "time": meal["meal_time"], "name": meal["name"], "ingredients": ingredients_by_meal.get(meal["id"], []), "calories_kcal": meal["calories_kcal"], "coach_instructions": meal.get("coach_instructions", ""), "preparation": meal.get("preparation", ""), "macros": {"protein_g": meal["protein_g"], "carbs_g": meal["carbs_g"], "fat_g": meal["fat_g"]}, "adherence_status": status_by_meal.get(meal["id"], "pending")} for meal in meals]}
 
     def upsert_meal_adherence(self, meal_id: str, payload: MealAdherenceUpsert) -> dict[str, Any]:
-        if payload.date > date.today():
+        if payload.date > self.today():
             raise APIError(422, "future_date", "Meal adherence date cannot be in future")
         self._one("meals", {"id": f"eq.{meal_id}"}, "meal_not_found", "Assigned meal not found")
         self._write("POST", "meal_adherence", {"client_id": self.client_id, "meal_id": meal_id, "entry_date": payload.date.isoformat(), "status": payload.status}, params={"on_conflict": "client_id,meal_id,entry_date"}, prefer="resolution=merge-duplicates,return=representation")
@@ -214,21 +258,14 @@ class SupabaseClientService:
             unknown = {item.plan_exercise_id for item in payload.exercise_logs} - allowed
             if unknown:
                 raise APIError(422, "invalid_exercise_log", "Exercise does not belong to this session")
-            for exercise in payload.exercise_logs:
-                for set_data in exercise.sets:
-                    self._write("POST", "workout_set_logs", {"session_id": session_id, "workout_exercise_id": exercise.plan_exercise_id, **set_data.model_dump()}, params={"on_conflict": "session_id,workout_exercise_id,set_number"}, prefer="resolution=merge-duplicates,return=representation")
-        update: dict[str, Any] = {}
-        if "status" in payload.model_fields_set: update["status"] = payload.status
-        if "completed_at" in payload.model_fields_set: update["completed_at"] = payload.completed_at.isoformat() if payload.completed_at else None
-        if "overall_difficulty" in payload.model_fields_set: update["overall_difficulty"] = payload.overall_difficulty
-        if "note" in payload.model_fields_set: update["client_note"] = payload.note
-        if update:
-            updated = self._write("PATCH", "workout_sessions", update, params={"id": f"eq.{session_id}"})[0]
-        else:
-            updated = session
+        updated = self.gateway.request("POST", "/rest/v1/rpc/save_workout_log", json={"p_session_id": session_id, "p_payload": payload.model_dump(mode="json", exclude_unset=True)}).json()
         logs = self._rows("workout_set_logs", {"session_id": f"eq.{session_id}"})
         completed = {item["workout_exercise_id"] for item in logs}
         return {"session_id": session_id, "status": updated["status"], "completed_at": updated.get("completed_at"), "volume_kg": round(sum(float(item["reps"]) * float(item["load_kg"]) for item in logs), 2), "completion_percent": round(100 * len(completed) / len(exercises)) if exercises else 0}
+
+    def workout_history(self) -> dict:
+        sessions = self._all_rows("workout_sessions", {"client_id": f"eq.{self.client_id}", "order": "session_date.asc,id.asc"})
+        return exercise_history([self._workout_payload(s) for s in sessions])
 
     def health_summary(self) -> dict[str, Any]:
         client, _ = self._client_and_profile()
@@ -278,7 +315,7 @@ class SupabaseClientService:
         logs_by_exercise: dict[str, list[dict[str, Any]]] = {}
         for item in logs:
             logs_by_exercise.setdefault(item["workout_exercise_id"], []).append({"set_number": item["set_number"], "reps": item["reps"], "load_kg": _number(item["load_kg"]), "difficulty": item.get("difficulty")})
-        return {"session_id": session["id"], "date": session["session_date"], "title": session["title"], "week_label": session["week_label"], "coach_note": session["coach_note"], "status": session["status"], "estimated_duration_minutes": session["estimated_duration_minutes"], "exercises": [{"id": item["id"], "name": item["name"], "prescription": {"sets": item["prescribed_sets"], "reps": item["prescribed_reps"], "rest_seconds": item.get("rest_seconds"), "coach_note": item["coach_note"]}, "sets": logs_by_exercise.get(item["id"], [])} for item in exercises]}
+        return {"session_id": session["id"], "date": session["session_date"], "title": session["title"], "week_label": session["week_label"], "coach_note": session["coach_note"], "status": session["status"], "note": session.get("client_note"), "overall_difficulty": session.get("overall_difficulty"), "estimated_duration_minutes": session["estimated_duration_minutes"], "exercises": [{"id": item["id"], "plan_exercise_id": item["id"], "exercise_library_item_id": item.get("exercise_library_item_id"), "name": item["name"], "prescription": {"sets": item["prescribed_sets"], "reps": item["prescribed_reps"], "rest_seconds": item.get("rest_seconds"), "coach_note": item["coach_note"]}, "sets": logs_by_exercise.get(item["id"], [])} for item in exercises]}
 
     def _profile_payload(self, client: dict[str, Any], profile: dict[str, Any]) -> dict[str, Any]:
         return {"client_id": self.client_id, "name": profile["full_name"], "email": profile.get("email") or self.user.email or "", "primary_goal": client["primary_goal"], "target_weight_kg": self._active_weight_target(), "check_in_day": client["check_in_day"], "timezone": client["timezone"], "dietary_preferences": client["dietary_preferences"], "allergies_injuries": client["allergies_injuries"]}
@@ -289,11 +326,13 @@ class SupabaseClientService:
 
     @staticmethod
     def _checkin_payload(entry: dict[str, Any]) -> dict[str, Any]:
-        return {key: entry.get(key) for key in ("id", "period_start", "submitted_at", "energy_score", "sleep_score", "sentiment", "observation", "concern")}
+        return {**{key: entry.get(key) for key in ("id", "period_start", "submitted_at", "energy_score", "sleep_score", "sentiment", "observation", "concern")},
+                "questionnaire_version": entry.get("questionnaire_version", 1), "ratings": entry.get("ratings", {}),
+                "challenges": entry.get("challenges", ""), "additional_comments": entry.get("additional_comments", "")}
 
     @staticmethod
     def _photo_payload(photo: dict[str, Any]) -> dict[str, Any]:
-        return {"id": photo["id"], "view": photo["view"], "captured_on": photo["captured_on"], "file_name": photo["original_filename"], "content_url": f"/api/v1/client/progress-photos/{photo['id']}/content"}
+        return {"id": photo["id"], "view": photo["view"], "captured_on": photo["captured_on"], "file_name": photo["original_filename"], "content_url": f"/api/v1/client/progress-photos/{photo['id']}/content", "period_start": photo.get("period_start") or _week_start(date.fromisoformat(photo["captured_on"])).isoformat(), "uploaded_at": photo.get("created_at")}
 
     def _rows(self, table: str, params: dict[str, Any] | None = None) -> list[dict[str, Any]]:
         response = self.gateway.request("GET", f"/rest/v1/{table}", params={"select": "*", **(params or {})})

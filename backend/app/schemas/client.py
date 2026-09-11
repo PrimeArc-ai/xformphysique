@@ -4,6 +4,8 @@ from datetime import date, datetime
 from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+from app.services.progress import RATING_KEYS
 
 
 PositiveFloat = Annotated[float, Field(gt=0)]
@@ -25,6 +27,24 @@ class CheckInUpsert(APIModel):
     sentiment: Literal["excellent", "good", "okay", "low"]
     observation: Annotated[str, Field(min_length=1, max_length=1000)]
     concern: Annotated[str | None, Field(max_length=1000)] = None
+    questionnaire_version: Literal[1, 2] = 1
+    ratings: dict[str, Annotated[int, Field(strict=True, ge=1, le=10)]] = Field(default_factory=dict)
+    challenges: str = Field(default="", max_length=2000)
+    additional_comments: str = Field(default="", max_length=2000)
+
+    @model_validator(mode="after")
+    def complete_ratings(self):
+        expected = set(RATING_KEYS) if self.questionnaire_version == 2 else set()
+        if set(self.ratings) != expected:
+            raise ValueError("Version 2 requires all eleven 1–10 ratings; version 1 has no detailed ratings")
+        return self
+
+
+class WeeklyFeedback(APIModel):
+    observations: str = Field(max_length=4000)
+    adjustments: str = Field(max_length=4000)
+    instructions: str = Field(max_length=4000)
+    next_week_priorities: str = Field(max_length=4000)
 
 
 class MealAdherenceUpsert(APIModel):
@@ -47,6 +67,12 @@ class ExerciseLog(APIModel):
     plan_exercise_id: Annotated[str, Field(min_length=1, max_length=50)]
     sets: list[WorkoutSet] = Field(default_factory=list, max_length=20)
 
+    @model_validator(mode="after")
+    def unique_sets(self):
+        if len({s.set_number for s in self.sets}) != len(self.sets):
+            raise ValueError("Set numbers must be unique within an exercise")
+        return self
+
 
 class WorkoutSessionUpdate(APIModel):
     status: Literal["ready", "in_progress", "completed"] | None = None
@@ -61,6 +87,8 @@ class WorkoutSessionUpdate(APIModel):
             raise ValueError("Provide at least one session field")
         if self.status == "completed" and self.completed_at is None:
             self.completed_at = datetime.now().astimezone()
+        if self.exercise_logs is not None and len({e.plan_exercise_id for e in self.exercise_logs}) != len(self.exercise_logs):
+            raise ValueError("Exercise IDs must be unique")
         return self
 
 
@@ -78,6 +106,11 @@ class ProfileUpdate(APIModel):
     def has_update(self) -> ProfileUpdate:
         if not self.model_fields_set:
             raise ValueError("Provide at least one profile field")
+        if self.timezone:
+            try:
+                ZoneInfo(self.timezone)
+            except ZoneInfoNotFoundError:
+                raise ValueError("Use a valid IANA timezone")
         return self
 
 
@@ -119,11 +152,17 @@ class CheckInResponse(BaseModel):
     sentiment: str
     observation: str
     concern: str | None
+    questionnaire_version: int = 1
+    ratings: dict[str, int] = Field(default_factory=dict)
+    challenges: str = ""
+    additional_comments: str = ""
+    feedback: dict[str, Any] | None = None
 
 
 class CheckInsResponse(BaseModel):
     schedule: dict[str, Any]
     items: list[CheckInResponse]
+    has_more: bool = False
 
 
 class CheckInSaveResponse(CheckInResponse):
@@ -136,10 +175,14 @@ class PhotoResponse(BaseModel):
     captured_on: date
     file_name: str
     content_url: str
+    period_start: date | None = None
+    uploaded_at: datetime | None = None
+    cleanup_pending: bool = False
 
 
 class ProgressPhotosResponse(BaseModel):
     items: list[PhotoResponse]
+    has_more: bool = False
 
 
 class DashboardResponse(BaseModel):
@@ -183,6 +226,8 @@ class WorkoutSessionResponse(BaseModel):
     status: str
     estimated_duration_minutes: int
     exercises: list[dict[str, Any]]
+    note: str | None = None
+    overall_difficulty: str | None = None
 
 
 class WorkoutSessionSaveResponse(BaseModel):

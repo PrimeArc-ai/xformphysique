@@ -35,7 +35,7 @@ export default function PasswordReset({ auth }) {
         {error && <div className="auth-error" role="alert">{error}</div>}
         <button className="lime-button" disabled={submitting || password.length < 8}>{submitting ? 'Saving password…' : 'Save password'}</button>
       </form>
-      <button className="auth-text-button" type="button" onClick={auth.signOut}>Back to sign in</button>
+      <button className="auth-text-button" type="button" disabled={submitting} onClick={auth.signOut}>Back to sign in</button>
     </section>
   </main>
 }

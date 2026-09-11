@@ -1,13 +1,26 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 export default function AuthGate({ auth }) {
   const [email, setEmail] = useState(auth.localDemo ? 'local@xform.demo' : '')
   const [password, setPassword] = useState(auth.localDemo ? 'localdemo' : '')
-  const [confirmPassword, setConfirmPassword] = useState('')
+  const [resetSent, setResetSent] = useState(false)
+  const [resendAt, setResendAt] = useState(0)
+  const [now, setNow] = useState(Date.now)
   const [portal, setPortal] = useState('client')
   const [view, setView] = useState('login')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState(auth.localDemo ? '' : auth.error)
+
+  const resendSeconds = Math.max(0, Math.ceil((resendAt - now) / 1000))
+  useEffect(() => {
+    if (!resendAt) return undefined
+    const timer = window.setInterval(() => {
+      const current = Date.now()
+      setNow(current)
+      if (current >= resendAt) window.clearInterval(timer)
+    }, 1000)
+    return () => window.clearInterval(timer)
+  }, [resendAt])
 
   const submit = async (event) => {
     event.preventDefault()
@@ -27,9 +40,13 @@ export default function AuthGate({ auth }) {
     setSubmitting(true)
     setError('')
     try {
-      await auth.setPasswordAndSignIn({ email, password, confirmPassword, portal })
+      await auth.requestPasswordReset({ email })
+      setResetSent(true)
+      const requestedAt = Date.now()
+      setNow(requestedAt)
+      setResendAt(requestedAt + 60_000)
     } catch (reason) {
-      setError(reason.message || 'Unable to update this password.')
+      setError(reason.message || 'Unable to request a reset email. Please try again.')
     } finally {
       setSubmitting(false)
     }
@@ -38,14 +55,16 @@ export default function AuthGate({ auth }) {
   const openForgot = () => {
     setView('forgot')
     setPassword('')
-    setConfirmPassword('')
+    setResetSent(false)
+    setResendAt(0)
     setError('')
   }
 
   const backToLogin = () => {
     setView('login')
     setPassword('')
-    setConfirmPassword('')
+    setResetSent(false)
+    setResendAt(0)
     setError('')
   }
 
@@ -60,6 +79,7 @@ export default function AuthGate({ auth }) {
       <p className="kicker">SECURE WORKSPACE ACCESS</p>
       <h1 id="auth-title">Welcome back.</h1>
       <p>Your space to move forward. Choose your portal and sign in.</p>
+      {auth.passwordResetComplete && <p role="status">Password updated. Sign in with your new password.</p>}
       <form onSubmit={submit}>
         <fieldset className="portal-selector" disabled={submitting}>
           <legend>Choose your portal</legend>
@@ -78,20 +98,12 @@ export default function AuthGate({ auth }) {
       {view === 'forgot' && <>
       <p className="kicker">RESET ACCESS</p>
       <h1 id="auth-title">Forgot password.</h1>
-      <p>Enter the account email and a new password. This updates the login immediately for Client, Coach or Admin. No reset email is sent.</p>
+      <p>Enter your account email. We’ll send a secure, time-limited link to reset your password. The same process works for Client, Coach and Admin.</p>
       <form onSubmit={requestReset}>
-        <fieldset className="portal-selector" disabled={submitting}>
-          <legend>Choose your portal</legend>
-          <div>{['client', 'coach', 'admin'].map(role => <label key={role} className={portal === role ? 'selected' : ''}>
-            <input type="radio" name="forgot-portal" value={role} checked={portal === role} onChange={() => { setPortal(role); setError('') }} />
-            <span>{role[0].toUpperCase() + role.slice(1)}</span>
-          </label>)}</div>
-        </fieldset>
-        <label>Email<input type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required autoFocus /></label>
-        <label>New password<input type="password" autoComplete="new-password" minLength="8" value={password} onChange={(event) => setPassword(event.target.value)} required /></label>
-        <label>Confirm password<input type="password" autoComplete="new-password" minLength="8" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} required /></label>
+        <label>Email<input type="email" autoComplete="email" value={email} disabled={submitting} onChange={(event) => { setEmail(event.target.value); setResetSent(false); setResendAt(0); setError('') }} required autoFocus /></label>
         {error && <div className="auth-error" role="alert">{error}</div>}
-        <button className="lime-button" disabled={submitting || password.length < 8}>{submitting ? 'Saving password…' : 'Save password and sign in'}</button>
+        {resetSent && <p role="status">If an account exists for this email, a reset link has been requested. Check your inbox and spam folder. Delivery may take a few minutes.</p>}
+        <button className="lime-button" disabled={submitting || resendSeconds > 0}>{submitting ? 'Requesting…' : resendSeconds > 0 ? `Resend in ${resendSeconds}s` : resetSent ? 'Resend reset link' : 'Send reset link'}</button>
         <button className="auth-text-button auth-forgot-link" type="button" disabled={submitting} onClick={backToLogin}>Back to sign in</button>
       </form>
       </>}

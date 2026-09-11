@@ -1,0 +1,77 @@
+.progress-workspace { display: grid; gap: 24px; min-width: 0; }
+.progress-workspace h2, .progress-panel h2 { margin: 6px 0 12px; font-family: var(--font-display); }
+.progress-workspace p, .progress-panel p { line-height: 1.65; }
+.progress-panel { padding: clamp(16px, 2vw, 28px); margin: 0 0 20px; min-width: 0; }
+.progress-panel > header { padding: 0 0 20px; margin-bottom: 20px; }
+.progress-panel > legend { padding: 0 10px; font-size: 22px; font-family: var(--font-display); }
+.progress-panel label, .progress-schedule > div { display: grid; gap: 8px; min-width: 0; }
+.progress-panel label { margin-bottom: 18px; }
+.progress-panel :is(input, select, textarea) { width: 100%; min-width: 0; min-height: 44px; padding: 10px 12px; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-control); font: inherit; }
+.progress-panel textarea { resize: vertical; }
+.progress-panel button:not(.lime-button):not(.photo-image-button) { min-height: 40px; padding: 9px 15px; border: 1px solid var(--border); border-radius: var(--radius-control); color: var(--text); background: var(--bg); text-align: center; }
+.progress-panel button[aria-pressed="true"] { color: var(--accent)!important; border-color: var(--accent)!important; background: var(--selected)!important; }
+.progress-panel button:disabled { opacity: .55; cursor: wait; }
+.progress-actions { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin: 16px 0; }
+.progress-caption, .progress-panel small { color: var(--text-muted); line-height: 1.6; }
+.progress-empty { padding: 32px 0; color: var(--text-muted); }
+.progress-stats, .rating-fields, .rating-history, .photo-week-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.progress-stats { margin: 20px 0; }
+.progress-stats > span { display: grid; gap: 6px; }
+.progress-stats strong { font: 28px var(--font-display); color: var(--accent); }
+.progress-schedule { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-bottom: 24px; }
+.progress-schedule > div { background: var(--surface); border: 1px solid var(--border); padding: 20px; border-radius: var(--radius-panel); }
+.progress-schedule small { color: var(--text-muted); font-size: 10px; letter-spacing: .12em; }
+.progress-schedule strong { color: var(--accent); font: 23px var(--font-display); }
+.progress-schedule span { font-size: 12px; color: var(--text-muted); }
+.progress-chart { margin: 20px 0; }
+.progress-chart figcaption { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+.progress-chart figcaption strong { color: var(--accent); font-size: 13px; }
+.progress-chart svg { width: 100%; height: auto; overflow: visible; }
+.progress-chart line { stroke: var(--border); stroke-dasharray: 3 5; }
+.progress-chart text { fill: var(--text-muted); font-size: 11px; }
+.progress-chart polyline { fill: none; stroke: var(--accent); stroke-width: 2.5; }
+.progress-chart circle { fill: var(--accent); stroke: var(--bg); stroke-width: 2; cursor: pointer; }
+.progress-chart circle:focus { outline: 2px solid var(--text); }
+.progress-table-scroll { overflow-x: auto; }
+.progress-panel table { border-collapse: collapse; width: 100%; margin: 14px 0; }
+.progress-panel :is(th, td) { text-align: left; padding: 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.progress-panel summary { cursor: pointer; padding: 16px 0; font-weight: 600; }
+.progress-panel details { border-top: 1px solid var(--border); margin-top: 16px; }
+.progress-panel :is(dd, dt) { margin: 0 0 8px; overflow-wrap: anywhere; white-space: pre-wrap; }
+.progress-panel dt { color: var(--text-muted); }
+.weekly-feedback { border-top: 1px solid var(--border); padding-top: 16px; margin: 22px 0; }
+.set-editor, .set-labels { display: grid; grid-template-columns: 36px minmax(60px, 1fr) minmax(60px, 1fr) minmax(70px, 1fr) 42px; align-items: center; gap: 10px; margin-bottom: 12px; }
+.set-labels { color: var(--text-muted); font-size: 10px; }
+.set-editor output { color: var(--accent); font-variant-numeric: tabular-nums; }
+.pose-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 20px 0; }
+.weekly-photo-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.weekly-photo-pair figure { margin: 0; min-width: 0; }
+.weekly-photo-pair figcaption { display: grid; gap: 6px; margin-bottom: 12px; }
+.weekly-photo-pair figcaption span { color: var(--text-muted); }
+.photo-image-button { display: block; width: 100%; padding: 0; border: 1px solid var(--border); background: var(--bg); cursor: zoom-in; }
+.photo-image-button img { display: block; width: 100%; height: clamp(220px, 32vw, 420px); object-fit: contain; }
+.photo-placeholder { min-height: 220px; display: grid; place-items: center; text-align: center; border: 1px dashed var(--border); padding: 20px; color: var(--text-muted); background: var(--bg); }
+.photo-record-id { display: block; overflow-wrap: anywhere; margin: 8px 0; }
+.photo-upload-row { margin-top: 24px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.photo-week-notes { border-top: 1px solid var(--border); padding-top: 20px; margin-top: 24px; }
+.photo-zoom-dialog { width: min(96vw, 1200px); max-height: 95dvh; padding: 24px; color: var(--text); background: var(--bg); border: 1px solid var(--border); }
+.photo-zoom-dialog::backdrop { background: rgba(0, 0, 0, .88); }
+.photo-zoom-dialog:fullscreen { width: 100vw; max-height: 100dvh; }
+.photo-zoom-scroll { overflow: auto; max-height: 74dvh; }
+.photo-zoom-scroll img { display: block; }
+.meal-portions { list-style: none; padding: 0; margin: 0 0 22px; }
+.meal-portions li { display: flex; justify-content: space-between; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.meal-portions span { color: var(--accent); }
+.meal-first-card section { margin: 24px 0; }
+.meal-first-card small { display: block; margin-top: 8px; }
+@media (max-width: 650px) {
+  .rating-fields, .photo-upload-row, .progress-schedule { grid-template-columns: 1fr; }
+  .progress-panel { padding: 14px; }
+  .set-editor, .set-labels { gap: 5px; grid-template-columns: 22px minmax(45px, 1fr) minmax(45px, 1fr) 55px 32px; }
+  .set-editor input { padding: 8px 4px; }
+  .set-editor button { padding: 4px!important; }
+  .weekly-photo-pair { gap: 10px; }
+  .weekly-photo-pair figcaption, .weekly-photo-pair p { font-size: 11px; }
+  .photo-placeholder { min-height: 180px; padding: 10px; font-size: 12px; }
+  .photo-image-button img { height: 200px; }
+}

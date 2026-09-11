@@ -113,10 +113,12 @@ class R2PhotoStorage:
         except Exception as exc:
             raise APIError(404, "photo_not_found", "Progress photo not found") from exc
 
-    def delete(self, object_key: str) -> None:
+    def delete(self, object_key: str, *, strict: bool = False) -> None:
         try:
             self._r2().delete_object(Bucket=self.bucket, Key=object_key)
-        except Exception:
+        except Exception as exc:
+            if strict:
+                raise APIError(503, "photo_cleanup_pending", "Photo is hidden; private object cleanup must be retried") from exc
             # Cleanup never hides the original database error after a metadata write failure.
             return
 

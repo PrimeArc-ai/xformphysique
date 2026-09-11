@@ -75,6 +75,10 @@ class CheckIn(Base):
     sentiment: Mapped[str] = mapped_column(String(30))
     observation: Mapped[str] = mapped_column(Text)
     concern: Mapped[str | None] = mapped_column(Text, nullable=True)
+    questionnaire_version: Mapped[int] = mapped_column(Integer, default=1)
+    ratings: Mapped[dict] = mapped_column(JSON, default=dict)
+    challenges: Mapped[str] = mapped_column(Text, default="")
+    additional_comments: Mapped[str] = mapped_column(Text, default="")
 
     client: Mapped[Client] = relationship(back_populates="check_ins")
 
@@ -90,6 +94,7 @@ class ProgressPhoto(Base):
     storage_key: Mapped[str] = mapped_column(String(255), unique=True)
     content_type: Mapped[str] = mapped_column(String(100))
     byte_size: Mapped[int] = mapped_column(Integer)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -122,6 +127,8 @@ class Meal(Base):
     ingredients: Mapped[list[dict[str, Any]]] = mapped_column(JSON)
     calories_kcal: Mapped[int] = mapped_column(Integer)
     macros: Mapped[dict[str, int]] = mapped_column(JSON)
+    coach_instructions: Mapped[str] = mapped_column(Text, default="")
+    preparation: Mapped[str] = mapped_column(Text, default="")
 
     plan: Mapped[MealPlan] = relationship(back_populates="meals")
     adherence: Mapped[list[MealAdherence]] = relationship(back_populates="meal", cascade="all, delete-orphan")

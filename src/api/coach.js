@@ -30,6 +30,13 @@ async function privateObjectUrl(path, accessToken) {
 }
 
 export const coachApi = {
+  getCheckIns: (clientId, token, offset = 0) => request(`/coach/clients/${clientId}/check-ins?offset=${offset}`, token),
+  getPhotos: (clientId, token, offset = 0) => request(`/coach/clients/${clientId}/progress-photos?offset=${offset}`, token),
+  deletePhoto: (clientId, photoId, token) => request(`/coach/clients/${clientId}/progress-photos/${photoId}`, token, { method: 'DELETE' }),
+  getWorkoutHistory: (clientId, token) => request(`/coach/clients/${clientId}/workout-history`, token),
+  saveFeedback: (clientId, checkinId, payload, token) => request(`/coach/clients/${clientId}/check-ins/${checkinId}/feedback`, token, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+  }),
   listClients: (accessToken) => request('/coach/clients', accessToken),
   getClientReview: (clientId, accessToken) => request(`/coach/clients/${clientId}/review`, accessToken),
   getPrivatePhotoUrl: (contentPath, accessToken) => privateObjectUrl(contentPath, accessToken),

@@ -8,6 +8,7 @@ from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.errors import APIError
+from app.services.progress import local_today, schedule, exercise_history
 from app.models.client import (
     BodyEntry,
     CheckIn,
@@ -60,7 +61,7 @@ class ClientService:
 
     def get_dashboard(self) -> dict[str, Any]:
         client = self._client()
-        today = date.today()
+        today = self.today()
         body_entries = self.db.scalars(
             self._body_query().order_by(BodyEntry.entry_date.desc()).limit(7)
         ).all()
@@ -154,28 +155,25 @@ class ClientService:
         response["summary"] = self._body_summary()
         return response
 
-    def list_checkins(self, limit: int) -> dict[str, Any]:
+    def today(self) -> date:
+        return local_today(self._client().timezone)
+
+    def list_checkins(self, limit: int, offset: int = 0) -> dict[str, Any]:
         client = self._client()
-        today = date.today()
         entries = self.db.scalars(
-            self._checkin_query().order_by(CheckIn.period_start.desc()).limit(limit)
+            self._checkin_query().order_by(CheckIn.period_start.desc())
         ).all()
-        due_on = self._next_weekday(today, client.check_in_day)
-        current = self.db.scalars(
-            self._checkin_query().where(CheckIn.period_start == _week_start(today))
-        ).first()
+        values = [self._checkin_payload(entry) for entry in entries]
         return {
-            "schedule": {
-                "day_of_week": client.check_in_day,
-                "current_status": "submitted" if current else "due",
-                "due_on": due_on,
-            },
-            "items": [self._checkin_payload(entry) for entry in entries],
+            "schedule": schedule({"timezone": client.timezone, "check_in_day": client.check_in_day, "created_at": client.created_at}, values),
+            "items": values[offset:offset + limit], "has_more": len(values) > offset + limit,
         }
 
     def upsert_current_checkin(self, payload: CheckInUpsert) -> dict[str, Any]:
-        period_start = _week_start(date.today())
+        period_start = _week_start(self.today())
         entry = self.db.scalars(self._checkin_query().where(CheckIn.period_start == period_start)).first()
+        if entry and entry.questionnaire_version > payload.questionnaire_version:
+            raise APIError(409, "questionnaire_downgrade", "Refresh the app before editing this check-in")
         if entry is None:
             entry = CheckIn(id=_identifier("checkin"), client_id=self.client_id, period_start=period_start)
             self.db.add(entry)
@@ -185,20 +183,24 @@ class ClientService:
         entry.sentiment = payload.sentiment
         entry.observation = payload.observation
         entry.concern = payload.concern
+        entry.questionnaire_version = payload.questionnaire_version
+        entry.ratings = payload.ratings
+        entry.challenges = payload.challenges
+        entry.additional_comments = payload.additional_comments
         self.db.commit()
         self.db.refresh(entry)
         response = self._checkin_payload(entry)
         response["status"] = "submitted"
         return response
 
-    def list_progress_photos(self, view: str | None, limit: int) -> dict[str, Any]:
+    def list_progress_photos(self, view: str | None, limit: int, offset: int = 0) -> dict[str, Any]:
         query = self._photo_query()
         if view:
             query = query.where(ProgressPhoto.view == view)
         photos = self.db.scalars(
-            query.order_by(ProgressPhoto.captured_on.desc(), ProgressPhoto.created_at.desc()).limit(limit)
+            query.order_by(ProgressPhoto.captured_on.desc(), ProgressPhoto.created_at.desc(), ProgressPhoto.id.desc()).offset(offset).limit(limit + 1)
         ).all()
-        return {"items": [self._photo_payload(photo) for photo in photos]}
+        return {"items": [self._photo_payload(photo) for photo in photos[:limit]], "has_more": len(photos) > limit}
 
     def create_progress_photo(
         self,
@@ -209,9 +211,13 @@ class ClientService:
         storage_key: str,
         content_type: str,
         byte_size: int,
+        replace_photo_id: str | None = None,
     ) -> dict[str, Any]:
-        if captured_on > date.today():
+        if captured_on > self.today():
             raise APIError(422, "future_date", "Photo capture date cannot be in future")
+        previous = self.get_photo(replace_photo_id) if replace_photo_id else None
+        if previous and (previous.view != view or _week_start(previous.captured_on) != _week_start(captured_on)):
+            raise APIError(422, "invalid_replacement", "Replacement must use the same pose and week")
         photo = ProgressPhoto(
             id=_identifier("photo"),
             client_id=self.client_id,
@@ -223,9 +229,22 @@ class ClientService:
             byte_size=byte_size,
         )
         self.db.add(photo)
+        if previous:
+            previous.deleted_at = _now()
         self.db.commit()
         self.db.refresh(photo)
+        if previous:
+            from app.services.photo_storage import LocalPhotoStorage
+            LocalPhotoStorage().delete(previous.storage_key)
         return self._photo_payload(photo)
+
+    def delete_progress_photo(self, photo_id: str) -> dict:
+        photo = self.get_photo(photo_id)
+        photo.deleted_at = _now()
+        self.db.commit()
+        from app.services.photo_storage import LocalPhotoStorage
+        LocalPhotoStorage().delete(photo.storage_key)
+        return {"id": photo_id, "deleted": True, "cleanup_pending": False}
 
     def get_photo(self, photo_id: str) -> ProgressPhoto:
         photo = self.db.scalars(self._photo_query().where(ProgressPhoto.id == photo_id)).first()
@@ -273,6 +292,8 @@ class ClientService:
                     "ingredients": meal.ingredients,
                     "calories_kcal": meal.calories_kcal,
                     "macros": meal.macros,
+                    "coach_instructions": meal.coach_instructions,
+                    "preparation": meal.preparation,
                     "adherence_status": adherence.get(meal.id, "pending"),
                 }
                 for meal in plan.meals
@@ -280,7 +301,7 @@ class ClientService:
         }
 
     def upsert_meal_adherence(self, meal_id: str, payload: MealAdherenceUpsert) -> dict[str, Any]:
-        if payload.date > date.today():
+        if payload.date > self.today():
             raise APIError(422, "future_date", "Meal adherence date cannot be in future")
         meal = self._assigned_meal(meal_id, payload.date)
         record = self.db.execute(
@@ -318,7 +339,7 @@ class ClientService:
         }
 
     def create_recipe_guide(self, meal_id: str) -> dict[str, Any]:
-        meal = self._assigned_meal(meal_id, date.today())
+        meal = self._assigned_meal(meal_id, self.today())
         ingredient_names = [item["name"] for item in meal.ingredients]
         guide = f"Prepare {' and '.join(ingredient_names)} using assigned quantities. Serve when ready."
         return {
@@ -364,6 +385,8 @@ class ClientService:
             session.exercise_logs = [entry.model_dump() for entry in payload.exercise_logs]
         if "status" in payload.model_fields_set:
             session.status = payload.status or session.status
+            if session.status != "completed":
+                session.completed_at = None
         if "completed_at" in payload.model_fields_set:
             session.completed_at = payload.completed_at
         if "overall_difficulty" in payload.model_fields_set:
@@ -375,7 +398,7 @@ class ClientService:
         self.db.commit()
         self.db.refresh(session)
         volume = _volume_from_logs(session.exercise_logs or [])
-        completed_exercises = len({entry["plan_exercise_id"] for entry in session.exercise_logs or []})
+        completed_exercises = len({entry["plan_exercise_id"] for entry in session.exercise_logs or [] if entry.get("sets")})
         completion = round(100 * completed_exercises / len(session.exercises)) if session.exercises else 0
         return {
             "session_id": session.id,
@@ -436,7 +459,7 @@ class ClientService:
         return select(CheckIn).where(CheckIn.client_id == self.client_id)
 
     def _photo_query(self) -> Select[tuple[ProgressPhoto]]:
-        return select(ProgressPhoto).where(ProgressPhoto.client_id == self.client_id)
+        return select(ProgressPhoto).where(ProgressPhoto.client_id == self.client_id, ProgressPhoto.deleted_at.is_(None))
 
     def _session_query(self) -> Select[tuple[WorkoutSession]]:
         return select(WorkoutSession).where(WorkoutSession.client_id == self.client_id)
@@ -500,6 +523,10 @@ class ClientService:
             "sentiment": entry.sentiment,
             "observation": entry.observation,
             "concern": entry.concern,
+            "questionnaire_version": entry.questionnaire_version,
+            "ratings": entry.ratings,
+            "challenges": entry.challenges,
+            "additional_comments": entry.additional_comments,
         }
 
     @staticmethod
@@ -509,6 +536,8 @@ class ClientService:
             "view": photo.view,
             "captured_on": photo.captured_on,
             "file_name": photo.file_name,
+            "period_start": _week_start(photo.captured_on),
+            "uploaded_at": photo.created_at,
             "content_url": f"/api/v1/client/progress-photos/{photo.id}/content",
         }
 
@@ -521,6 +550,8 @@ class ClientService:
             "week_label": session.week_label,
             "coach_note": session.coach_note,
             "status": session.status,
+            "note": session.client_note,
+            "overall_difficulty": session.overall_difficulty,
             "estimated_duration_minutes": session.estimated_duration_minutes,
             "exercises": [
                 {
@@ -528,10 +559,15 @@ class ClientService:
                     "order": exercise.position,
                     "name": exercise.name,
                     "prescription": exercise.prescription,
+                    "sets": next((row["sets"] for row in (session.exercise_logs or []) if row["plan_exercise_id"] == exercise.id), []),
                 }
                 for exercise in session.exercises
             ],
         }
+
+    def workout_history(self) -> dict:
+        sessions = self.db.scalars(self._session_query().options(selectinload(WorkoutSession.exercises)).order_by(WorkoutSession.session_date)).all()
+        return exercise_history([self._workout_payload(s) for s in sessions])
 
     @staticmethod
     def _profile_payload(client: Client) -> dict[str, Any]:

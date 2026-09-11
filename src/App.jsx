@@ -62,9 +62,9 @@ function ClientWorkspace({ auth }) {
   const activePage = active === 'Body Tracker'
     ? <BodyTracker entries={client.bodyEntries} onAddEntry={client.saveBodyEntry} />
     : active === 'Check-ins'
-      ? <CheckInsPage checkIns={client.checkIns} onSave={client.saveCheckIn} />
+      ? <CheckInsPage checkIns={client.checkIns} onSave={client.saveCheckIn} schedule={client.checkInSchedule} profile={client.profile} />
       : active === 'Progress Photos'
-        ? <PhotosPage photos={client.photos} onUploadPhoto={client.uploadPhoto} />
+        ? <PhotosPage profile={client.profile} checkIns={client.checkIns} />
         : active === 'Nutrition'
           ? <NutritionPage nutrition={client.nutrition} onSetAdherence={client.saveMealAdherence} onGetRecipe={client.getRecipeGuide} />
           : active === 'Workout'
@@ -73,7 +73,7 @@ function ClientWorkspace({ auth }) {
               ? <HealthSummaryPage health={client.health} />
               : active === 'Profile'
                 ? <ProfilePage profile={client.profile} profilePhoto={client.profilePhoto} onSave={client.saveProfile} onUploadPhoto={client.uploadProfilePhoto} />
-                : <ClientDashboard dashboard={client.dashboard} bodyEntries={client.bodyEntries} workout={client.workout} navigate={chooseSection} />
+                : <ClientDashboard dashboard={client.dashboard} bodyEntries={client.bodyEntries} workout={client.workout} navigate={chooseSection} schedule={client.checkInSchedule} />
 
   return <div className="os-shell">
       <aside className="os-sidebar">
