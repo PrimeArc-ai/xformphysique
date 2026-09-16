@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { coachApi } from '../api/coach'
 import {
   addDayExercise,
@@ -69,39 +69,60 @@ export default function WorkoutProgramBuilder({ client, accessToken }) {
   const [busy, setBusy] = useState('')
   const [notice, setNotice] = useState('')
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
+  const [loadedClientId, setLoadedClientId] = useState('')
   const [confirming, setConfirming] = useState(false)
   const publishKey = useRef(null)
+  const loadRequest = useRef(0)
+  const clientIdentity = useRef(client.id)
+  const clientGeneration = useRef(0)
+  if (clientIdentity.current !== client.id) {
+    clientIdentity.current = client.id
+    clientGeneration.current += 1
+  }
 
-  useEffect(() => {
-    let cancelled = false
+  const operationIsCurrent = useCallback((clientId, generation) => (
+    clientIdentity.current === clientId && clientGeneration.current === generation
+  ), [])
+
+  const loadWorkspace = useCallback(async () => {
+    const requestId = ++loadRequest.current
+    const requestedClientId = client.id
+    const generation = clientGeneration.current
     setLoading(true)
+    setLoadError('')
     setNotice('')
     setErrors({})
+    try {
+      const result = await coachApi.getWorkoutProgram(requestedClientId, accessToken)
+      if (requestId !== loadRequest.current || !operationIsCurrent(requestedClientId, generation)) return
+      setWorkspace(result)
+      setProgram(result.draft
+        ? snapshotProgram(result.draft)
+        : result.active_program
+          ? snapshotProgram(result.active_program)
+          : emptyProgram(localDate()))
+      setLoadedClientId(requestedClientId)
+    } catch (error) {
+      if (requestId !== loadRequest.current || !operationIsCurrent(requestedClientId, generation)) return
+      setWorkspace(null)
+      setLoadedClientId(requestedClientId)
+      setLoadError(error.message || 'Could not load this workout program workspace.')
+    } finally {
+      if (requestId === loadRequest.current && operationIsCurrent(requestedClientId, generation)) setLoading(false)
+    }
+  }, [accessToken, client.id, operationIsCurrent])
+
+  useEffect(() => {
+    setBusy('')
     setConfirming(false)
     publishKey.current = null
-    coachApi.getWorkoutProgram(client.id, accessToken)
-      .then(result => {
-        if (cancelled) return
-        setWorkspace(result)
-        setProgram(result.draft
-          ? snapshotProgram(result.draft)
-          : result.active_program
-            ? snapshotProgram(result.active_program)
-            : emptyProgram(localDate()))
-      })
-      .catch(error => {
-        if (cancelled) return
-        setWorkspace({ active_program: null, draft: null, exercise_library: [] })
-        setProgram(emptyProgram(localDate()))
-        setNotice(error.message || 'Could not load this workout program workspace.')
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-    return () => { cancelled = true }
-  }, [accessToken, client.id])
+    loadWorkspace()
+    return () => { loadRequest.current += 1 }
+  }, [loadWorkspace])
 
   const editProgram = updater => {
+    publishKey.current = null
     setProgram(current => typeof updater === 'function' ? updater(current) : updater)
     setErrors({})
     setNotice('')
@@ -159,17 +180,21 @@ export default function WorkoutProgramBuilder({ client, accessToken }) {
 
   const saveDraft = async () => {
     if (!validProgram()) return
+    const requestedClientId = client.id
+    const generation = clientGeneration.current
+    publishKey.current = null
     setBusy('draft')
     setNotice('')
     try {
-      const result = await coachApi.saveWorkoutProgramDraft(client.id, program, accessToken)
+      const result = await coachApi.saveWorkoutProgramDraft(requestedClientId, program, accessToken)
+      if (!operationIsCurrent(requestedClientId, generation)) return
       setWorkspace(current => ({ ...current, draft: result }))
       setProgram(snapshotProgram(result))
       setNotice('Draft saved.')
     } catch (error) {
-      setNotice(error.message || 'Draft could not be saved. Your entries are still here.')
+      if (operationIsCurrent(requestedClientId, generation)) setNotice(error.message || 'Draft could not be saved. Your entries are still here.')
     } finally {
-      setBusy('')
+      if (operationIsCurrent(requestedClientId, generation)) setBusy('')
     }
   }
 
@@ -186,24 +211,32 @@ export default function WorkoutProgramBuilder({ client, accessToken }) {
       return
     }
     publishKey.current ||= crypto.randomUUID()
+    const requestedClientId = client.id
+    const generation = clientGeneration.current
+    const requestedPublishKey = publishKey.current
     setBusy('publish')
     setNotice('')
     try {
-      const result = await coachApi.publishWorkoutProgram(client.id, publishKey.current, program, accessToken)
+      const result = await coachApi.publishWorkoutProgram(requestedClientId, requestedPublishKey, program, accessToken)
+      if (!operationIsCurrent(requestedClientId, generation)) return
       setWorkspace(current => ({ ...current, active_program: result.program, draft: null }))
       setProgram(snapshotProgram(result.program))
       setNotice(`${result.generated_session_count} sessions published`)
       setConfirming(false)
       publishKey.current = null
     } catch (error) {
-      setNotice(error.message || 'Publish failed. Your entries are still here; retry safely.')
+      if (operationIsCurrent(requestedClientId, generation)) setNotice(error.message || 'Publish failed. Your entries are still here; retry safely.')
     } finally {
-      setBusy('')
+      if (operationIsCurrent(requestedClientId, generation)) setBusy('')
     }
   }
 
-  if (loading) {
+  if (loadedClientId !== client.id || loading) {
     return <section className="coach-empty program-builder-loading"><strong>Loading workout program…</strong><span>Checking saved drafts and the active version.</span></section>
+  }
+
+  if (loadError) {
+    return <section className="coach-empty program-builder-loading"><strong>Workout program unavailable</strong><span>{loadError}</span><button className="coach-secondary" type="button" onClick={loadWorkspace}>Retry loading workout program</button></section>
   }
 
   const activeProgram = workspace?.active_program
@@ -238,6 +271,7 @@ export default function WorkoutProgramBuilder({ client, accessToken }) {
         </label>
         <label className="program-wide-field">Program notes
           <textarea rows="3" maxLength="2000" value={program.notes} onChange={event => updateProgramField('notes', event.target.value)} />
+          <FieldError>{errors.notes}</FieldError>
         </label>
       </div>
 
@@ -261,6 +295,7 @@ export default function WorkoutProgramBuilder({ client, accessToken }) {
               <select value={day.weekday} onChange={event => updateDay(dayIndex, 'weekday', Number(event.target.value))}>
                 {weekdays.map(([value, label]) => <option value={value} key={value}>{label}</option>)}
               </select>
+              <FieldError>{errors[`days.${dayIndex}.weekday`]}</FieldError>
             </label>
             <label>Day {dayIndex + 1} name
               <input maxLength="160" value={day.name} onChange={event => updateDay(dayIndex, 'name', event.target.value)} />
@@ -268,6 +303,7 @@ export default function WorkoutProgramBuilder({ client, accessToken }) {
             </label>
             <label className="program-wide-field">Day {dayIndex + 1} notes
               <textarea rows="2" maxLength="2000" value={day.coach_note} onChange={event => updateDay(dayIndex, 'coach_note', event.target.value)} />
+              <FieldError>{errors[`days.${dayIndex}.coach_note`]}</FieldError>
             </label>
           </div>
 
@@ -295,12 +331,15 @@ export default function WorkoutProgramBuilder({ client, accessToken }) {
                 </label>
                 <label>Day {dayIndex + 1} exercise {exerciseIndex + 1} reps
                   <input maxLength="40" value={exercise.prescribed_reps} onChange={event => updateExercise(dayIndex, exerciseIndex, 'prescribed_reps', event.target.value)} />
+                  <FieldError>{errors[`days.${dayIndex}.exercises.${exerciseIndex}.reps`]}</FieldError>
                 </label>
                 <label>Day {dayIndex + 1} exercise {exerciseIndex + 1} rest seconds
                   <input type="number" min="0" max="1800" value={exercise.rest_seconds ?? ''} onChange={event => updateExercise(dayIndex, exerciseIndex, 'rest_seconds', event.target.value === '' ? null : Number(event.target.value))} />
+                  <FieldError>{errors[`days.${dayIndex}.exercises.${exerciseIndex}.rest_seconds`]}</FieldError>
                 </label>
                 <label className="exercise-note-field">Day {dayIndex + 1} exercise {exerciseIndex + 1} notes
                   <textarea rows="2" maxLength="1000" value={exercise.coach_note} onChange={event => updateExercise(dayIndex, exerciseIndex, 'coach_note', event.target.value)} />
+                  <FieldError>{errors[`days.${dayIndex}.exercises.${exerciseIndex}.coach_note`]}</FieldError>
                 </label>
               </div>
             </section>)}

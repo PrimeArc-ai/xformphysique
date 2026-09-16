@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { emptyProgram, validateProgram } from '../src/coach/workoutProgramModel'
 
 const rosterClient = {
   id: 'client-id',
@@ -20,10 +21,10 @@ const rosterClient = {
   },
 }
 
-function persistedProgram(program, status, version = null) {
+function persistedProgram(program, status, version = null, clientId = 'client-id') {
   return {
     id: `${status}-program-id`,
-    client_id: 'client-id',
+    client_id: clientId,
     ...structuredClone(program),
     status,
     version,
@@ -41,18 +42,26 @@ function persistedProgram(program, status, version = null) {
 }
 
 function workoutProgramFixture() {
+  const workspace = {
+    active_program: null,
+    draft: null,
+    exercise_library: [
+      { id: '10000000-0000-4000-8000-000000000001', name: 'Goblet squat', body_region: 'lower_body', training_focus: 'strength' },
+      { id: '10000000-0000-4000-8000-000000000002', name: 'Cable row', body_region: 'upper_body', training_focus: 'strength' },
+    ],
+  }
   return {
-    workspace: {
-      active_program: null,
-      draft: null,
-      exercise_library: [
-        { id: '10000000-0000-4000-8000-000000000001', name: 'Goblet squat', body_region: 'lower_body', training_focus: 'strength' },
-        { id: '10000000-0000-4000-8000-000000000002', name: 'Cable row', body_region: 'upper_body', training_focus: 'strength' },
-      ],
-    },
+    clients: [rosterClient],
+    workspace,
+    workspaces: { 'client-id': workspace },
     draftCalls: [],
     publishCalls: [],
     failedPublishesRemaining: 0,
+    workspaceFailure: false,
+    deferredDraft: null,
+    deferredPublish: null,
+    draftResponses: 0,
+    publishResponses: 0,
   }
 }
 
@@ -82,25 +91,38 @@ async function mockWorkoutProgram(page, state) {
       return json({ ...user, role: 'coach', full_name: 'Aisha Kapoor', first_name: 'Aisha' })
     }
     if (path === '/api/v1/coach/profile/photo') return json({ photo: null })
-    if (path === '/api/v1/coach/clients') return json({ items: [rosterClient] })
-    if (path === '/api/v1/coach/clients/client-id/workout-program' && method === 'GET') {
-      return json(state.workspace)
+    if (path === '/api/v1/coach/clients') return json({ items: state.clients })
+    const programMatch = path.match(/^\/api\/v1\/coach\/clients\/([^/]+)\/workout-program(?:\/(draft|publish))?$/)
+    const clientId = programMatch?.[1]
+    const action = programMatch?.[2]
+    if (programMatch && !action && method === 'GET') {
+      if (state.workspaceFailure) {
+        return route.fulfill({ status: 503, json: { error: { message: 'Workspace unavailable. Retry safely.' } } })
+      }
+      return json(state.workspaces[clientId] ?? state.workspace)
     }
-    if (path === '/api/v1/coach/clients/client-id/workout-program/draft' && method === 'PUT') {
+    if (action === 'draft' && method === 'PUT') {
       const program = request.postDataJSON()
-      state.draftCalls.push(program)
-      state.workspace.draft = persistedProgram(program, 'draft')
-      return json(state.workspace.draft)
+      state.draftCalls.push({ clientId, program })
+      if (state.deferredDraft) await new Promise(resolve => { state.deferredDraft.resolve = resolve })
+      const draft = persistedProgram(program, 'draft', null, clientId)
+      state.workspaces[clientId] = { ...(state.workspaces[clientId] ?? state.workspace), draft }
+      if (clientId === 'client-id') state.workspace = state.workspaces[clientId]
+      state.draftResponses += 1
+      return json(draft)
     }
-    if (path === '/api/v1/coach/clients/client-id/workout-program/publish' && method === 'POST') {
+    if (action === 'publish' && method === 'POST') {
       const payload = request.postDataJSON()
-      state.publishCalls.push(payload)
+      state.publishCalls.push({ clientId, ...payload })
       if (state.failedPublishesRemaining > 0) {
         state.failedPublishesRemaining -= 1
         return route.fulfill({ status: 503, json: { error: { message: 'Publish service unavailable. Retry safely.' } } })
       }
-      const program = persistedProgram(payload.program, 'published', 1)
-      state.workspace = { ...state.workspace, active_program: program, draft: null }
+      if (state.deferredPublish) await new Promise(resolve => { state.deferredPublish.resolve = resolve })
+      const program = persistedProgram(payload.program, 'published', 1, clientId)
+      state.workspaces[clientId] = { ...(state.workspaces[clientId] ?? state.workspace), active_program: program, draft: null }
+      if (clientId === 'client-id') state.workspace = state.workspaces[clientId]
+      state.publishResponses += 1
       return json({
         program,
         generated_session_count: payload.program.days.length * 4,
@@ -129,6 +151,52 @@ async function completeRequiredExercises(page, count) {
     await page.getByLabel(`Day ${day} exercise 1 name`).fill(day === 1 ? 'Goblet squat' : `Exercise ${day}`)
   }
 }
+
+test('validateProgram rejects every server-side program bound', () => {
+  const program = emptyProgram('2026-09-16')
+  program.name = 'P'.repeat(161)
+  program.notes = 'N'.repeat(2001)
+  program.days[0] = {
+    ...program.days[0],
+    weekday: 0,
+    name: 'D'.repeat(161),
+    coach_note: 'C'.repeat(2001),
+    exercises: [{
+      ...program.days[0].exercises[0],
+      name: 'E'.repeat(161),
+      prescribed_sets: 1.5,
+      prescribed_reps: '   ',
+      rest_seconds: 1801,
+      coach_note: 'X'.repeat(1001),
+    }],
+  }
+  program.days[1].weekday = 8
+  program.days[1].exercises[0].name = 'Cable row'
+
+  expect(validateProgram(program)).toMatchObject({
+    name: 'Program name must be 1–160 characters.',
+    notes: 'Program notes must be 2000 characters or fewer.',
+    'days.0.weekday': 'Weekday must be 1–7.',
+    'days.0.name': 'Day name must be 1–160 characters.',
+    'days.0.coach_note': 'Day notes must be 2000 characters or fewer.',
+    'days.0.exercises.0.name': 'Exercise name must be 1–160 characters.',
+    'days.0.exercises.0.sets': 'Sets must be a whole number from 1–20.',
+    'days.0.exercises.0.reps': 'Reps must be 1–40 characters.',
+    'days.0.exercises.0.rest_seconds': 'Rest must be empty or a whole number from 0–1800.',
+    'days.0.exercises.0.coach_note': 'Exercise notes must be 1000 characters or fewer.',
+    'days.1.weekday': 'Weekday must be 1–7.',
+  })
+
+  const untrimmed = emptyProgram('2026-09-16')
+  untrimmed.name = 'Valid program'
+  untrimmed.days.forEach((day, index) => {
+    day.exercises[0].name = `Exercise ${index + 1}`
+  })
+  untrimmed.days[0].exercises[0].prescribed_reps = ' 8-10 '
+  expect(validateProgram(untrimmed)).toMatchObject({
+    'days.0.exercises.0.reps': 'Reps must be 1–40 characters without outer spaces.',
+  })
+})
 
 test('starts with two days and enforces day limits and unique weekdays', async ({ page }) => {
   const state = workoutProgramFixture()
@@ -192,7 +260,7 @@ test('draft restores and publish refreshes persisted program', async ({ page }) 
   await completeRequiredExercises(page, 3)
   await page.getByRole('button', { name: 'Save draft' }).click()
   await expect(page.getByText('Draft saved.')).toBeVisible()
-  expect(state.draftCalls[0].days.map(day => day.position)).toEqual([1, 2, 3])
+  expect(state.draftCalls[0].program.days.map(day => day.position)).toEqual([1, 2, 3])
 
   await page.reload()
   if (await page.getByRole('heading', { name: 'Welcome back.' }).isVisible()) await loginCoach(page)
@@ -231,4 +299,80 @@ test('failed publish retains entries and retry reuses its publish key', async ({
   expect(state.publishCalls).toHaveLength(2)
   expect(state.publishCalls[0].publish_key).toBe(state.publishCalls[1].publish_key)
   expect(state.publishCalls[0].program.name).toBe('Retry-safe strength')
+})
+
+test('client changes ignore stale draft and publish responses', async ({ page }) => {
+  const state = workoutProgramFixture()
+  state.clients.push({ ...rosterClient, id: 'client-b', client_code: 'XP-0100', full_name: 'Client B' })
+  state.workspaces['client-b'] = { ...structuredClone(state.workspace), active_program: null, draft: null }
+  state.deferredDraft = {}
+  await mockWorkoutProgram(page, state)
+  await loginCoach(page)
+  await openBuilder(page)
+
+  await page.getByLabel('Program name').fill('Client A draft')
+  await completeRequiredExercises(page, 2)
+  await page.getByRole('button', { name: 'Save draft' }).click()
+  await expect.poll(() => state.draftCalls.length).toBe(1)
+  await page.getByRole('combobox', { name: 'CLIENT', exact: true }).selectOption('client-b')
+  await expect(page.getByRole('region', { name: 'Workout program editor for Client B' })).toBeVisible()
+  await page.getByLabel('Program name').fill('Client B untouched')
+  state.deferredDraft.resolve()
+  await expect.poll(() => state.draftResponses).toBe(1)
+  await expect(page.getByLabel('Program name')).toHaveValue('Client B untouched')
+  await expect(page.getByText('Draft saved.')).toHaveCount(0)
+
+  await page.getByRole('combobox', { name: 'CLIENT', exact: true }).selectOption('client-id')
+  await expect(page.getByRole('region', { name: 'Workout program editor for QA Client' })).toBeVisible()
+  await page.getByLabel('Program name').fill('Client A publish')
+  await completeRequiredExercises(page, 2)
+  state.deferredPublish = {}
+  await page.getByRole('button', { name: 'Publish 4-week program' }).click()
+  await page.getByRole('dialog').getByRole('button', { name: 'Confirm publish' }).click()
+  await expect.poll(() => state.publishCalls.length).toBe(1)
+  await page.getByRole('combobox', { name: 'CLIENT', exact: true }).selectOption('client-b', { force: true })
+  await expect(page.getByRole('region', { name: 'Workout program editor for Client B' })).toBeVisible()
+  await page.getByLabel('Program name').fill('Client B still untouched')
+  state.deferredPublish.resolve()
+  await expect.poll(() => state.publishResponses).toBe(1)
+  await expect(page.getByLabel('Program name')).toHaveValue('Client B still untouched')
+  await expect(page.getByText('8 sessions published')).toHaveCount(0)
+})
+
+test('editing after a failed publish creates a new publish key', async ({ page }) => {
+  const state = workoutProgramFixture()
+  state.failedPublishesRemaining = 1
+  await mockWorkoutProgram(page, state)
+  await loginCoach(page)
+  await openBuilder(page)
+
+  await page.getByLabel('Program name').fill('First snapshot')
+  await completeRequiredExercises(page, 2)
+  await page.getByRole('button', { name: 'Publish 4-week program' }).click()
+  await page.getByRole('dialog').getByRole('button', { name: 'Confirm publish' }).click()
+  await expect(page.getByText('Publish service unavailable. Retry safely.')).toBeVisible()
+  await page.getByRole('dialog').getByRole('button', { name: 'Cancel' }).click()
+  await page.getByLabel('Program name').fill('Changed snapshot')
+  await page.getByRole('button', { name: 'Publish 4-week program' }).click()
+  await page.getByRole('dialog').getByRole('button', { name: 'Confirm publish' }).click()
+  await expect(page.getByText('8 sessions published')).toBeVisible()
+
+  expect(state.publishCalls).toHaveLength(2)
+  expect(state.publishCalls[0].publish_key).not.toBe(state.publishCalls[1].publish_key)
+  expect(state.publishCalls[1].program.name).toBe('Changed snapshot')
+})
+
+test('load failure blocks editing until retry succeeds', async ({ page }) => {
+  const state = workoutProgramFixture()
+  state.workspaceFailure = true
+  await mockWorkoutProgram(page, state)
+  await loginCoach(page)
+  await page.getByRole('button', { name: 'Workout', exact: true }).first().click()
+
+  await expect(page.getByText('Workspace unavailable. Retry safely.')).toBeVisible()
+  await expect(page.getByLabel('Program name')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Retry loading workout program' })).toBeVisible()
+  state.workspaceFailure = false
+  await page.getByRole('button', { name: 'Retry loading workout program' }).click()
+  await expect(page.getByLabel('Program name')).toBeVisible()
 })
