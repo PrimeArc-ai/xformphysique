@@ -61,6 +61,7 @@ class CoachClientListItem(BaseModel):
     latest_checkin_period_start: date | None
     latest_checkin_submitted_at: datetime | None
     needs_attention: bool
+    attention_reasons: list[str] = Field(default_factory=list)
     check_in_schedule: dict = Field(default_factory=dict)
 
 

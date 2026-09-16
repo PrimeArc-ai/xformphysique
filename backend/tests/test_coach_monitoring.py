@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import date, timedelta
+
 import httpx
 import pytest
 
@@ -271,3 +273,37 @@ def test_coach_context_update_is_targeted_and_audited(monkeypatch: pytest.Monkey
     assert writes[1][0] == "audit"
     assert writes[1][2]["client_id"] == "client-a"
     assert writes[1][2]["action"] == "coach_note_saved"
+
+
+def test_list_clients_attention_reasons_use_threshold_and_consecutive_misses(monkeypatch):
+    service = coach_service()
+    today = date.today()
+
+    def request(method, path, **kwargs):
+        params = kwargs.get("params") or {}
+        if path.endswith("/rest/v1/profiles"):
+            if params.get("id") == "eq.coach-id":
+                return FakeResponse(200, [{"id": "coach-id", "role": "coach"}])
+            return FakeResponse(200, [{"id": "client-1", "role": "client", "full_name": "Navaneet"}])
+        if path.endswith("/rest/v1/coaches"):
+            return FakeResponse(200, [{"id": "coach-id", "is_active": True}])
+        if path.endswith("/rest/v1/clients"):
+            return FakeResponse(200, [{"id": "client-1", "client_code": "XP-0005", "primary_goal": "fat_loss",
+                "check_in_day": "wednesday", "timezone": "Asia/Kolkata", "created_at": "2026-01-01T00:00:00Z"}])
+        if path.endswith("/rest/v1/body_entries"):
+            return FakeResponse(200, [{"client_id": "client-1", "entry_date": (today - timedelta(days=9)).isoformat(), "weight_kg": 80}])
+        if path.endswith("/rest/v1/weekly_checkins"):
+            return FakeResponse(200, [])
+        if path.endswith("/rest/v1/client_tracking_preferences"):
+            return FakeResponse(200, [{"client_id": "client-1", "missing_weight_threshold_days": 3}])
+        raise AssertionError(path)
+
+    monkeypatch.setattr(service.gateway, "request", request)
+    monkeypatch.setattr("app.services.supabase_coach.schedule", lambda client, rows: {
+        "current_status": "overdue", "consecutive_missed": 3, "missed_count": 3, "due_on": None, "next_due_on": None, "timezone": "Asia/Kolkata",
+    })
+    items = service.list_clients()["items"]
+    assert items[0]["needs_attention"] is True
+    assert any("body entry" in reason.lower() for reason in items[0]["attention_reasons"])
+    assert any("3" in reason and "missed" in reason.lower() for reason in items[0]["attention_reasons"])
+

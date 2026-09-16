@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date
 import logging
 from typing import Any
 from urllib.parse import quote
@@ -87,6 +87,10 @@ class SupabaseCoachService:
             offset += 500
         latest_body = self._latest_by_client(body_entries, "entry_date")
         latest_checkin = self._latest_by_client(checkins, "period_start")
+        preference_rows = self._rows("client_tracking_preferences", {"limit": 200})
+        thresholds = {
+            row["client_id"]: row.get("missing_weight_threshold_days") for row in preference_rows
+        }
 
         items = []
         for client in clients:
@@ -98,9 +102,18 @@ class SupabaseCoachService:
                 continue
             latest_entry = latest_body.get(client_id)
             latest_checkin_row = latest_checkin.get(client_id)
+            raw_threshold = thresholds.get(client_id)
+            threshold_days = 3 if raw_threshold is None else int(raw_threshold)
+            schedule_payload = schedule(client, [c for c in checkins if c["client_id"] == client_id])
             items.append(
-                {**self._client_list_item(client, profile, latest_entry, latest_checkin_row),
-                 "check_in_schedule": schedule(client, [c for c in checkins if c["client_id"] == client_id])}
+                self._client_list_item(
+                    client,
+                    profile,
+                    latest_entry,
+                    latest_checkin_row,
+                    threshold_days=threshold_days,
+                    schedule_payload=schedule_payload,
+                )
             )
         return {"items": items}
 
@@ -335,9 +348,27 @@ class SupabaseCoachService:
         profile: dict[str, Any],
         latest_entry: dict[str, Any] | None,
         latest_checkin: dict[str, Any] | None,
+        threshold_days: int = 3,
+        schedule_payload: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         entry_date = date.fromisoformat(latest_entry["entry_date"]) if latest_entry else None
-        needs_attention = entry_date is None or date.today() - entry_date > timedelta(days=3)
+        schedule_payload = schedule_payload or {}
+        consecutive_missed = int(schedule_payload.get("consecutive_missed") or 0)
+        overdue = schedule_payload.get("current_status") == "overdue"
+        attention_reasons: list[str] = []
+        if entry_date is None:
+            stale_weight = True
+            attention_reasons.append("No body entry")
+        else:
+            age_days = (date.today() - entry_date).days
+            stale_weight = age_days > threshold_days
+            if stale_weight:
+                attention_reasons.append(f"No body entry for {age_days} days")
+        if overdue:
+            attention_reasons.append("Weekly check-in overdue")
+        if consecutive_missed >= 3:
+            attention_reasons.append(f"{consecutive_missed} consecutive missed check-ins")
+        needs_attention = stale_weight or overdue or consecutive_missed >= 3
         return {
             "id": client["id"],
             "client_code": client["client_code"],
@@ -350,6 +381,8 @@ class SupabaseCoachService:
             "latest_checkin_period_start": latest_checkin.get("period_start") if latest_checkin else None,
             "latest_checkin_submitted_at": latest_checkin.get("submitted_at") if latest_checkin else None,
             "needs_attention": needs_attention,
+            "attention_reasons": attention_reasons,
+            "check_in_schedule": schedule_payload,
         }
 
     def _body_entry(self, entry: dict[str, Any]) -> dict[str, Any]:
