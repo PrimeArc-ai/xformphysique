@@ -293,12 +293,19 @@ class SupabaseCoachService:
         value: float | None,
         target_date: date | None,
     ) -> None:
-        if value is None:
-            return
         existing = self._one_or_none(
             "client_targets",
             {"client_id": f"eq.{client_id}", "metric": f"eq.{metric}", "is_active": "eq.true"},
         )
+        if value is None:
+            if existing:
+                self._write(
+                    "PATCH",
+                    "client_targets",
+                    {"is_active": False},
+                    params={"id": f"eq.{existing['id']}"},
+                )
+            return
         fields = {
             "target_value": value,
             "target_date": target_date.isoformat() if target_date else None,

@@ -335,3 +335,101 @@ def test_save_setup_patches_client_and_targets(monkeypatch: pytest.MonkeyPatch) 
     assert setup["target_weight_kg"] == 78.0
     assert setup["target_waist_cm"] == 88.0
     assert setup["target_date"] == date(2026, 11, 25)
+
+
+def test_save_setup_clears_null_targets_by_deactivating_active_rows(monkeypatch: pytest.MonkeyPatch) -> None:
+    seen: list[tuple[str, str, object]] = []
+    service = coach_service()
+    client_row = {
+        "id": "client-1",
+        "client_code": "XP-0005",
+        "primary_goal": "fat_loss",
+        "check_in_day": "wednesday",
+        "timezone": "Asia/Kolkata",
+        "dietary_preferences": "Vegetarian weekdays",
+        "allergies_injuries": "Right knee",
+    }
+    prefs_row = {
+        "client_id": "client-1",
+        "enabled_measurements": ["weight_kg", "waist_cm"],
+        "updated_by_coach_id": "coach-id",
+    }
+    targets = {
+        "weight_kg": {
+            "id": "target-weight",
+            "client_id": "client-1",
+            "metric": "weight_kg",
+            "target_value": "78.00",
+            "target_date": "2026-11-25",
+            "is_active": True,
+        },
+        "waist_cm": {
+            "id": "target-waist",
+            "client_id": "client-1",
+            "metric": "waist_cm",
+            "target_value": "88.00",
+            "target_date": "2026-11-25",
+            "is_active": True,
+        },
+    }
+
+    def request(method: str, path: str, **kwargs):
+        seen.append((method, path, kwargs.get("json")))
+        params = kwargs.get("params") or {}
+        payload = kwargs.get("json") or {}
+        identity = _coach_identity(path, params)
+        if identity is not None:
+            return identity
+        if path.endswith("/rest/v1/clients") and method == "GET":
+            return FakeResponse(200, [client_row])
+        if path.endswith("/rest/v1/clients") and method == "PATCH":
+            client_row.update(payload)
+            return FakeResponse(200, [client_row])
+        if path.endswith("/rest/v1/client_tracking_preferences") and method == "GET":
+            return FakeResponse(200, [prefs_row])
+        if path.endswith("/rest/v1/client_tracking_preferences") and method == "PATCH":
+            prefs_row.update(payload)
+            return FakeResponse(200, [prefs_row])
+        if path.endswith("/rest/v1/client_targets") and method == "GET":
+            rows = [row for row in targets.values() if row.get("is_active")]
+            metric = (params.get("metric") or "").replace("eq.", "")
+            if metric:
+                rows = [row for row in rows if row["metric"] == metric]
+            return FakeResponse(200, rows)
+        if path.endswith("/rest/v1/client_targets") and method == "PATCH":
+            target_id = (params.get("id") or "").replace("eq.", "")
+            for row in targets.values():
+                if row["id"] == target_id:
+                    row.update(payload)
+                    return FakeResponse(200, [row])
+            raise AssertionError(f"Unknown target patch: {target_id}")
+        if path.endswith("/rest/v1/audit_events") and method == "POST":
+            return FakeResponse(201, [{"id": "audit-setup"}])
+        raise AssertionError(f"Unexpected request: {method} {path}")
+
+    monkeypatch.setattr(service.gateway, "request", request)
+    setup = service.save_setup(
+        "client-1",
+        ClientSetup(
+            primary_goal="fat_loss",
+            check_in_day="wednesday",
+            dietary_preferences="Vegetarian weekdays",
+            allergies_injuries="Right knee",
+            enabled_measurements=["weight_kg", "waist_cm"],
+            target_weight_kg=None,
+            target_waist_cm=88.0,
+            target_date=date(2026, 11, 25),
+        ),
+    )
+
+    deactivate = next(
+        json
+        for method, path, json in seen
+        if method == "PATCH"
+        and path.endswith("/rest/v1/client_targets")
+        and (json or {}).get("is_active") is False
+    )
+    assert deactivate == {"is_active": False}
+    assert setup["target_weight_kg"] is None
+    assert setup["target_waist_cm"] == 88.0
+    assert targets["weight_kg"]["is_active"] is False
