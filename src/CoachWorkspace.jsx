@@ -594,36 +594,39 @@ function CoachSettings({ notice, account, profilePhoto, onUploadProfilePhoto, ac
 
 function CoachHealth({ clientId, clients, setClientId, accessToken, navigate }) {
   const client = clients.find((item) => item.id === clientId) ?? clients[0]
+  const reviewRequest = useRef(0)
   const [review, setReview] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   const load = useCallback(async () => {
     if (!client?.id) return
+    const requestId = ++reviewRequest.current
     setLoading(true)
     setError('')
-    setReview(null)
     try {
       const result = await coachApi.getClientReview(client.id, accessToken)
+      if (requestId !== reviewRequest.current) return
       setReview(result)
     } catch (reason) {
-      setError(reason.message || 'Could not load this protected client record.')
+      if (requestId === reviewRequest.current) setError(reason.message || 'Could not load this protected client record.')
     } finally {
-      setLoading(false)
+      if (requestId === reviewRequest.current) setLoading(false)
     }
   }, [accessToken, client?.id])
 
   useEffect(() => { load() }, [load])
 
+  const stale = Boolean(review?.client?.id && client?.id && review.client.id !== client.id)
   const allergies = review?.setup?.allergies_injuries || ''
   const context = review?.coaching_context || {}
   const considerations = context.training_considerations || []
 
   return <section className="coach-page">
     <CoachHeading eyebrow="COACH / HEALTH CONTEXT" title="Health" copy="Coaching support only. Not medical advice. Safety context from the assigned client record — not a lab archive." action={<ClientSelect clientId={clientId} clients={clients} onChange={setClientId} />} />
-    {loading && <div className="coach-empty"><CoachGlyph name="health" /><strong>Loading health context…</strong><span>Assigned-client safety fields only.</span></div>}
-    {!loading && error && <section className="coach-empty"><CoachGlyph name="alert" /><strong>Protected client record unavailable</strong><span>{error}</span><button className="coach-secondary" type="button" onClick={load}>Try again</button></section>}
-    {!loading && !error && review && <article className="panel">
+    {(loading || stale) && <div className="coach-empty"><CoachGlyph name="health" /><strong>Loading health context…</strong><span>Assigned-client safety fields only.</span></div>}
+    {!loading && !stale && error && <section className="coach-empty"><CoachGlyph name="alert" /><strong>Protected client record unavailable</strong><span>{error}</span><button className="coach-secondary" type="button" onClick={load}>Try again</button></section>}
+    {!loading && !stale && !error && review && <article className="panel">
       <header>
         <div>
           <p className="kicker">ASSIGNED CLIENT SAFETY</p>
@@ -913,7 +916,7 @@ export default function CoachWorkspace({ account, accessToken, onSignOut }) {
             : active === 'Workout' ? <CoachWorkout clientId={selectedClientId} clients={clients} setClientId={setSelectedClientId} accessToken={accessToken} />
               : active === 'Libraries' ? <CoachLibraries notice={setNotice} accessToken={accessToken} />
                 : active === 'Settings' ? <CoachSettings notice={setNotice} account={account} profilePhoto={profilePhoto} onUploadProfilePhoto={uploadProfilePhoto} accessToken={accessToken} />
-                  : active === 'Health' ? <CoachHealth clientId={selectedClientId} clients={clients} setClientId={setSelectedClientId} accessToken={accessToken} navigate={choose} />
+                  : active === 'Health' ? <CoachHealth key={selectedClient.id} clientId={selectedClientId} clients={clients} setClientId={setSelectedClientId} accessToken={accessToken} navigate={choose} />
                     : <CoachAudit accessToken={accessToken} />
   return <div className="os-shell coach-shell">
     <aside className="os-sidebar">
