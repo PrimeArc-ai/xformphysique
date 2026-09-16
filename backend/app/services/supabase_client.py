@@ -61,7 +61,7 @@ class SupabaseClientService:
         body = self._rows("body_entries", {"client_id": f"eq.{self.client_id}", "order": "entry_date.desc", "limit": 7})
         latest = body[0] if body else None
         checkins = self._rows("weekly_checkins", {"client_id": f"eq.{self.client_id}", "order": "period_start.desc"})
-        sessions = self._rows("workout_sessions", {"client_id": f"eq.{self.client_id}", "session_date": f"gte.{today - timedelta(days=29)}"})
+        sessions = self._rows("workout_sessions", {"client_id": f"eq.{self.client_id}", "session_date": f"gte.{today - timedelta(days=29)}", "retired_at": "is.null"})
         logs = self._rows("workout_set_logs", {"select": "session_id,reps,load_kg"}) if sessions else []
         session_dates = {item["id"]: item["session_date"] for item in sessions}
         daily_volume: dict[str, float] = {}
@@ -247,11 +247,11 @@ class SupabaseClientService:
         return {"meal_id": meal_id, "meal_name": meal["name"], "guide": guide, "uses_assigned_ingredients_only": True, "remaining_requests_today": 1}
 
     def get_workout_for_date(self, session_date: date) -> dict[str, Any]:
-        session = self._one("workout_sessions", {"client_id": f"eq.{self.client_id}", "session_date": f"eq.{session_date.isoformat()}"}, "workout_session_not_found", "No workout session assigned for this date")
+        session = self._one("workout_sessions", {"client_id": f"eq.{self.client_id}", "session_date": f"eq.{session_date.isoformat()}", "retired_at": "is.null"}, "workout_session_not_found", "No workout session assigned for this date")
         return self._workout_payload(session)
 
     def update_workout_session(self, session_id: str, payload: WorkoutSessionUpdate) -> dict[str, Any]:
-        session = self._one("workout_sessions", {"id": f"eq.{session_id}", "client_id": f"eq.{self.client_id}"}, "workout_session_not_found", "Workout session not found")
+        session = self._one("workout_sessions", {"id": f"eq.{session_id}", "client_id": f"eq.{self.client_id}", "retired_at": "is.null"}, "workout_session_not_found", "Workout session not found")
         exercises = self._rows("workout_exercises", {"session_id": f"eq.{session_id}"})
         allowed = {item["id"] for item in exercises}
         if payload.exercise_logs is not None:
@@ -264,7 +264,7 @@ class SupabaseClientService:
         return {"session_id": session_id, "status": updated["status"], "completed_at": updated.get("completed_at"), "volume_kg": round(sum(float(item["reps"]) * float(item["load_kg"]) for item in logs), 2), "completion_percent": round(100 * len(completed) / len(exercises)) if exercises else 0}
 
     def workout_history(self) -> dict:
-        sessions = self._all_rows("workout_sessions", {"client_id": f"eq.{self.client_id}", "order": "session_date.asc,id.asc"})
+        sessions = self._all_rows("workout_sessions", {"client_id": f"eq.{self.client_id}", "retired_at": "is.null", "order": "session_date.asc,id.asc"})
         return exercise_history([self._workout_payload(s) for s in sessions])
 
     def health_summary(self) -> dict[str, Any]:

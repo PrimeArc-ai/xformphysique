@@ -1,9 +1,12 @@
 from datetime import date, datetime, timedelta, timezone
+from types import SimpleNamespace
 import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 from sqlalchemy import create_engine, text, select
 from sqlalchemy.orm import Session
+from app.core.config import Settings
+from app.core.supabase import AuthenticatedUser
 from app.main import app
 from app.db.base import Base
 from app.db.upgrades import upgrade_local_schema
@@ -11,6 +14,7 @@ from app.models.client import CheckIn, Client, WorkoutSession, WorkoutExercise
 from app.schemas.client import CheckInUpsert, WorkoutSessionUpdate, ProfileUpdate
 from app.services.client import ClientService, seed_demo_data
 from app.services.progress import RATING_KEYS, PHOTO_VIEWS, schedule, exercise_history, local_today
+from app.services.supabase_client import SupabaseClientService
 
 
 def payload():
@@ -67,6 +71,41 @@ def test_exercise_history_uses_raw_sets_and_preserves_library_identity():
     assert result["trends"] == {"load_kg": "stable", "reps": "stable", "volume_kg": "increasing"}
     assert result["best_set"]["load_kg"] == 30 and result["training_days"] == 2
     assert len(result["history"]) == 2
+
+
+def test_supabase_workout_history_only_reads_active_workout_sessions():
+    # Catches removing the active-session predicate from workout history reads.
+    workout_session_reads = []
+
+    def request(method, path, **kwargs):
+        params = kwargs.get("params") or {}
+        if method == "GET" and path == "/rest/v1/workout_sessions":
+            workout_session_reads.append(params)
+            return SimpleNamespace(json=lambda: [{
+                "id": "session-a",
+                "session_date": "2026-09-16",
+                "title": "Workout A",
+                "week_label": "Week 1",
+                "coach_note": "",
+                "status": "completed",
+                "client_note": None,
+                "overall_difficulty": "moderate",
+                "estimated_duration_minutes": 45,
+            }])
+        if method == "GET" and path == "/rest/v1/workout_exercises":
+            return SimpleNamespace(json=lambda: [{"id": "exercise-a", "name": "Goblet squat", "exercise_library_item_id": "library-a", "prescribed_sets": 3, "prescribed_reps": "10", "rest_seconds": 60, "coach_note": ""}])
+        if method == "GET" and path == "/rest/v1/workout_set_logs":
+            return SimpleNamespace(json=lambda: [{"workout_exercise_id": "exercise-a", "set_number": 1, "reps": 10, "load_kg": 20, "difficulty": "moderate"}])
+        raise AssertionError(f"unexpected request {method} {path} {params}")
+
+    service = SupabaseClientService(
+        Settings(_env_file=None, supabase_url="https://example.supabase.co", supabase_publishable_key="public-test"),
+        AuthenticatedUser(id="client-a", email="client@example.test", access_token="test-only"),
+    )
+    service.gateway = SimpleNamespace(request=request)
+
+    assert service.workout_history()["items"][0]["name"] == "Goblet squat"
+    assert workout_session_reads[0]["retired_at"] == "is.null"
 
 
 def test_schedule_does_not_count_miss_before_local_signup_date():
