@@ -133,9 +133,23 @@
 .publish-confirmation-summary span { display: grid; gap: 6px; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-control); color: var(--text-muted); background: var(--surface-raised); font-size: 8px; font-weight: 800; letter-spacing: .08em; }
 .publish-confirmation-summary strong { overflow-wrap: anywhere; color: var(--text); font-size: 10px; letter-spacing: 0; }
 
+/* Persisted coach nutrition plan builder */
+.nutrition-plan-workspace { display: grid; gap: 15px; }
+.nutrition-plan-workspace button:disabled { opacity: .5; cursor: not-allowed; }
+.nutrition-plan-fields { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.nutrition-plan-meals { display: grid; gap: 13px; padding: 20px; }
+.nutrition-plan-meal { min-width: 0; }
+.nutrition-plan-meal > header { align-items: center; min-height: 63px; }
+.nutrition-plan-meal > header h3 { margin: 7px 0 4px; color: var(--text); font-size: 15px; letter-spacing: -.025em; }
+.nutrition-meal-fields { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.nutrition-ingredient-list { display: grid; gap: 9px; padding: 0 13px 13px; }
+.nutrition-ingredient-fields { grid-template-columns: 1.2fr 1.2fr minmax(90px, .6fr) minmax(90px, .6fr); }
+
 @media (max-width: 1050px) {
   .workout-exercise-fields { grid-template-columns: 1fr 1fr; }
   .workout-exercise-fields .exercise-note-field { grid-column: 1 / -1; }
+  .nutrition-plan-fields, .nutrition-meal-fields { grid-template-columns: 1fr 1fr; }
+  .nutrition-ingredient-fields { grid-template-columns: 1fr 1fr; }
 }
 @media (max-width: 850px) {
   .workout-program-days { grid-template-columns: 1fr; }
@@ -143,8 +157,10 @@
 @media (max-width: 620px) {
   .workout-program-editor-heading, .workout-days-toolbar, .workout-program-actions { align-items: stretch; flex-direction: column; }
   .workout-program-fields, .workout-day-fields, .workout-exercise-fields { grid-template-columns: 1fr; padding: 15px; }
+  .nutrition-plan-fields, .nutrition-meal-fields, .nutrition-ingredient-fields { grid-template-columns: 1fr; }
   .program-wide-field, .workout-exercise-fields .exercise-note-field { grid-column: auto; }
   .workout-program-days { padding: 15px; }
+  .nutrition-plan-meals { padding: 15px; }
   .workout-days-toolbar .coach-secondary, .workout-exercise-actions .coach-secondary, .workout-program-actions button { width: 100%; }
   .workout-exercise-actions, .workout-program-actions > div { align-items: stretch; flex-direction: column; }
   .workout-program-actions > div { width: 100%; }

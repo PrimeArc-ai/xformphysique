@@ -42,6 +42,14 @@ export const coachApi = {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ publish_key: publishKey, program }),
   }),
+  getNutritionPlan: (clientId, token) => request(`/coach/clients/${clientId}/nutrition-plan`, token),
+  saveNutritionPlanDraft: (clientId, plan, token) => request(`/coach/clients/${clientId}/nutrition-plan/draft`, token, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(plan),
+  }),
+  publishNutritionPlan: (clientId, publishKey, plan, token) => request(`/coach/clients/${clientId}/nutrition-plan/publish`, token, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ publish_key: publishKey, plan }),
+  }),
   saveFeedback: (clientId, checkinId, payload, token) => request(`/coach/clients/${clientId}/check-ins/${checkinId}/feedback`, token, {
     method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
   }),
