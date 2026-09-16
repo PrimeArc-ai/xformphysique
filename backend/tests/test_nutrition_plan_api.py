@@ -127,6 +127,28 @@ def test_snapshot_requires_integer_macros(invalid_macro: object) -> None:
         NutritionPlanSnapshot.model_validate(payload)
 
 
+@pytest.mark.parametrize("meal_time", ["08:00", "08:00:00"])
+def test_snapshot_accepts_exact_supported_meal_time_formats(meal_time: str) -> None:
+    payload = snapshot()
+    payload["meals"][0]["meal_time"] = meal_time
+
+    NutritionPlanSnapshot.model_validate(payload)
+
+
+@pytest.mark.parametrize(
+    "meal_time",
+    ["8:00", "08:00:00.123456", "2026-09-16T08:00:00"],
+)
+def test_snapshot_rejects_meal_time_outside_exact_supported_formats(
+    meal_time: str,
+) -> None:
+    payload = snapshot()
+    payload["meals"][0]["meal_time"] = meal_time
+
+    with pytest.raises(ValidationError):
+        NutritionPlanSnapshot.model_validate(payload)
+
+
 def plan_result(*, status: str = "draft", version: int | None = None, nested: bool = False) -> dict:
     meals = []
     for index in range(1, 3):

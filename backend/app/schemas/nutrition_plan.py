@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import re
 from datetime import date, time
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 StrictPositiveInt = Annotated[int, Field(strict=True, gt=0)]
@@ -35,6 +36,16 @@ class NutritionPlanMealInput(NutritionPlanAPIModel):
     coach_instructions: str = ""
     preparation: str = ""
     ingredients: list[NutritionPlanIngredientInput] = Field(min_length=1, max_length=12)
+
+    @field_validator("meal_time", mode="before")
+    @classmethod
+    def validate_meal_time_format(cls, value: object) -> object:
+        if not isinstance(value, str) or re.fullmatch(
+            r"[0-9]{2}:[0-9]{2}(?::[0-9]{2})?",
+            value,
+        ) is None:
+            raise ValueError("Meal time must use HH:MM or HH:MM:SS")
+        return value
 
 
 class NutritionPlanSnapshot(NutritionPlanAPIModel):
