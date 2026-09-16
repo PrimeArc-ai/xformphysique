@@ -40,3 +40,21 @@ def test_openapi_includes_strict_workout_program_contract() -> None:
     assert paths[publish_path]["post"]["responses"]["200"]["content"]["application/json"][
         "schema"
     ] == {"$ref": "#/components/schemas/WorkoutProgramPublishResponse"}
+
+
+def test_openapi_includes_coach_workspace_persistence_paths() -> None:
+    """Roster-adjacent coach workspace writes must stay in the public contract."""
+
+    paths = app.openapi()["paths"]
+    libraries = "/api/v1/coach/libraries"
+    settings = "/api/v1/coach/settings"
+    audit = "/api/v1/coach/audit-events"
+    notes = "/api/v1/coach/clients/{client_id}/private-notes"
+    setup = "/api/v1/coach/clients/{client_id}/setup"
+
+    assert "get" in paths[libraries]
+    assert "get" in paths[settings]
+    assert "put" in paths[settings]
+    assert "get" in paths[audit]
+    assert "post" in paths[notes]
+    assert "patch" in paths[setup]
