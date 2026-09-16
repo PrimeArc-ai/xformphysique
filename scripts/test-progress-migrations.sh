@@ -19,4 +19,7 @@ done
 if [[ -f "$repo_dir/backend/tests/sql/progress_acceptance.sql" ]]; then
   psql "${psql_args[@]}" -f "$repo_dir/backend/tests/sql/progress_acceptance.sql"
 fi
+if [[ -f "$repo_dir/backend/tests/sql/workout_program_acceptance.sql" ]]; then
+  psql "${psql_args[@]}" -f "$repo_dir/backend/tests/sql/workout_program_acceptance.sql"
+fi
 printf 'Preserved local test cluster and evidence: %s\n' "$test_dir"
