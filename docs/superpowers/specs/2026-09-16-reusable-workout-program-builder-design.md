@@ -1,7 +1,7 @@
 # Reusable Workout Program Builder Design
 
 Date: 2026-09-16
-Status: Awaiting final user review
+Status: Approved
 
 ## Goal
 
@@ -50,6 +50,8 @@ Add `weekday smallint` with ISO values 1–7 (Monday–Sunday). Enforce uniquene
 ### `training_programs`
 
 Add `publish_key uuid` nullable with a unique `(client_id, publish_key)` index for publish idempotency. Add a partial unique index allowing one `draft` row per client. Existing status values are reused: replaced published programs and consumed drafts become `archived`; no new enum value is needed.
+
+Add `coach_note text` with a 2000-character limit for the program-level notes field. Make `version` nullable for drafts: published versions remain positive and unique per client, while draft and draft-derived archived rows use null so saving drafts never consumes a published version number.
 
 ### `training_program_day_exercises`
 
