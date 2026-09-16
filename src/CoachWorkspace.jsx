@@ -25,7 +25,6 @@ const initialClients = [
   { id: 'XP-0034', name: 'Kabir Iyer', initials: 'KI', weight: '74.8 kg', lastEntry: 'Yesterday', checkIn: 'Submitted', status: 'On track', goal: 'Performance', checkInDay: 'Wednesday', attention: false },
 ]
 
-const reviewTabs = ['Overview', 'Progress', 'Check-ins', 'Photos', 'Plans', 'Notes', 'Setup']
 const foodItems = [
   ['Chicken breast', 'Protein', '31g P · 165 kcal'],
   ['Greek yoghurt', 'Dairy', '10g P · 73 kcal'],
@@ -39,20 +38,46 @@ const exerciseItems = [
   ['Cable row', 'Upper body', 'Strength'],
 ]
 
-const clientPreviews = {
-  'XP-0017': { average: '68.8 kg', tracking: '86%', start: '70.1 kg', change: '−1.7 kg', points: '15,37 100,52 185,70 270,82 355,117 440,128 525,151 625,164', targetWeight: '65.0 kg', targetWaist: '71.0 cm', targetProgress: '74%', waistProgress: '62%', targetDate: '18 Oct 2026', energy: '4/5', sleep: '3/5', sentiment: 'Good', adherence: '4/5', whatWentWell: 'Training felt more consistent and meals were easier to prepare this week.', context: 'Right knee felt sensitive after a long walk. No pain during training.', restrictions: 'Dairy-aware · shellfish-free', consideration: 'Monitor right knee comfort', alert: null, alertDetail: null, program: 'Lower body strength', programWeek: 'Week 03', sessions: '3/4', nutrition: '1,860', protein: '135', mealPlan: 'Recomposition baseline', meals: [['Breakfast', 'Greek yoghurt bowl', '420 kcal', 'P 35 · C 41 · F 13'], ['Lunch', 'Chicken harvest salad', '530 kcal', 'P 45 · C 51 · F 15'], ['Dinner', 'Miso salmon bowl', '610 kcal', 'P 46 · C 58 · F 21']] },
-  'XP-0024': { average: '82.6 kg', tracking: '43%', start: '86.2 kg', change: '−4.1 kg', points: '15,39 100,55 185,75 270,83 355,108 440,129 525,146 625,160', targetWeight: '78.0 kg', targetWaist: '88.0 cm', targetProgress: '50%', waistProgress: '38%', targetDate: '25 Nov 2026', energy: '2/5', sleep: '2/5', sentiment: 'Difficult', adherence: '2/5', whatWentWell: 'Meals were easier on weekdays when prepared in advance.', context: 'Travel disrupted routine. Ask for check-in before changing plan.', restrictions: 'Vegetarian weekdays · lactose-light', consideration: 'Keep running volume gradual', alert: 'Weight not recorded for 4 days.', alertDetail: 'Threshold: 3 days.', program: 'Strength foundation', programWeek: 'Week 02', sessions: '2/4', nutrition: '2,140', protein: '150', mealPlan: 'Fat-loss baseline', meals: [['Breakfast', 'Protein oats', '460 kcal', 'P 34 · C 51 · F 14'], ['Lunch', 'Paneer grain bowl', '610 kcal', 'P 42 · C 62 · F 20'], ['Dinner', 'Lentil curry plate', '580 kcal', 'P 38 · C 68 · F 16']] },
-  'XP-0031': { average: '—', tracking: '0%', start: '—', change: '—', points: null, targetWeight: 'Set target', targetWaist: 'Set target', targetProgress: '0%', waistProgress: '0%', targetDate: 'Not set', energy: '—', sleep: '—', sentiment: 'No check-in', adherence: '—', whatWentWell: 'No weekly check-in submitted yet.', context: 'Complete onboarding and request first body entry.', restrictions: 'Not recorded', consideration: 'Not recorded', alert: 'No body entry for 9 days.', alertDetail: 'Onboarding data is incomplete.', program: 'No workout plan', programWeek: 'Not assigned', sessions: '—', nutrition: '—', protein: '—', mealPlan: 'No nutrition plan', meals: [] },
-  'XP-0034': { average: '75.1 kg', tracking: '100%', start: '76.0 kg', change: '−1.2 kg', points: '15,42 100,48 185,61 270,79 355,86 440,108 525,121 625,139', targetWeight: '72.0 kg', targetWaist: '78.0 cm', targetProgress: '31%', waistProgress: '24%', targetDate: '06 Dec 2026', energy: '5/5', sleep: '4/5', sentiment: 'Great', adherence: '5/5', whatWentWell: 'All planned sessions completed with good energy.', context: 'Ready for a small load progression next review.', restrictions: 'No active restrictions', consideration: 'Monitor shoulder range during pressing', alert: null, alertDetail: null, program: 'Performance build', programWeek: 'Week 05', sessions: '4/4', nutrition: '2,380', protein: '160', mealPlan: 'Performance baseline', meals: [['Breakfast', 'Egg and rice bowl', '510 kcal', 'P 37 · C 59 · F 15'], ['Lunch', 'Chicken rice plate', '710 kcal', 'P 55 · C 82 · F 18'], ['Dinner', 'Salmon potato tray', '650 kcal', 'P 49 · C 54 · F 23']] },
-}
-
-function getClientPreview(client) {
-  return clientPreviews[client?.id] ?? { average: '—', tracking: '0%', start: '—', change: '—', points: null, targetWeight: 'Set target', targetWaist: 'Set target', targetProgress: '0%', waistProgress: '0%', targetDate: 'Not set', energy: '—', sleep: '—', sentiment: 'No check-in', adherence: '—', whatWentWell: 'No check-in in this local preview.', context: 'Complete client setup before interpreting progress.', restrictions: 'Not recorded', consideration: 'Not recorded', alert: 'No entries recorded.', alertDetail: 'Add first client body signal.', program: 'No workout plan', programWeek: 'Not assigned', sessions: '—', nutrition: '—', protein: '—', mealPlan: 'No nutrition plan', meals: [] }
-}
-
 function formatDate(value) {
   if (!value) return '—'
-  return new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(`${value}T00:00:00`))
+  return new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(`${String(value).slice(0, 10)}T00:00:00`))
+}
+
+function weightTrend(entries) {
+  const points = [...(entries || [])]
+    .filter((entry) => Number.isFinite(Number(entry.weight_kg)))
+    .sort((a, b) => a.entry_date.localeCompare(b.entry_date))
+  if (points.length < 2) return null
+  const weights = points.map((entry) => Number(entry.weight_kg))
+  const min = Math.min(...weights)
+  const max = Math.max(...weights)
+  const span = max - min || 1
+  return {
+    points: points.map((entry, index) => {
+      const x = (index * 640) / (points.length - 1)
+      const y = 210 - ((Number(entry.weight_kg) - min) / span) * 210
+      return `${x},${y}`
+    }).join(' '),
+    startDate: points[0].entry_date,
+    endDate: points.at(-1).entry_date,
+    startKg: weights[0],
+    endKg: weights.at(-1),
+    change: Number((weights.at(-1) - weights[0]).toFixed(1)),
+  }
+}
+
+function setupDraftFromReview(setup) {
+  return {
+    primary_goal: setup?.primary_goal || 'fat_loss',
+    check_in_day: setup?.check_in_day || 'sunday',
+    timezone: setup?.timezone || '',
+    dietary_preferences: setup?.dietary_preferences || '',
+    allergies_injuries: setup?.allergies_injuries || '',
+    enabled_measurements: (setup?.enabled_measurements || ['weight_kg', 'waist_cm']).join(','),
+    target_weight_kg: setup?.target_weight_kg ?? '',
+    target_waist_cm: setup?.target_waist_cm ?? '',
+    target_date: setup?.target_date || '',
+  }
 }
 
 function relativeDate(value) {
@@ -163,36 +188,6 @@ function CoachClients({ clients, onSelectClient, onCreateClient, notice }) {
   return <section className="coach-page"><CoachHeading eyebrow="COACH / CLIENT OPERATIONS" title="Clients" copy="Every client record, one controlled workspace." action={<button className="coach-primary" onClick={() => setShowCreate(true)}><CoachGlyph name="plus" />New client</button>} /><div className="coach-roster-tools"><label className="coach-search"><CoachGlyph name="search" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search clients or ID" /></label><div className="coach-filter-group" aria-label="Client filters">{['All', 'Needs attention', 'On track', 'Missing data'].map((option) => <button className={filter === option ? 'selected' : ''} onClick={() => setFilter(option)} key={option}>{option}</button>)}</div><button className="coach-quiet-button" onClick={() => notice('CSV preview needs backend validation endpoint.')}><CoachGlyph name="export" />CSV preview</button></div><section className="coach-client-list">{matches.map((client) => <article key={client.id}><div className="roster-avatar">{client.initials}</div><div className="roster-primary"><strong>{client.name}</strong><span>{client.id} · {client.goal}</span></div><div><small>WEIGHT</small><span>{client.weight}</span></div><div><small>LAST ENTRY</small><span>{client.lastEntry}</span></div><div><small>CHECK-IN</small><span>{client.checkIn}</span></div><Status tone={client.attention ? 'warning' : 'good'}>{client.status}</Status><button className="row-open" onClick={() => onSelectClient(client.id)}>Review <CoachGlyph name="chevron" /></button></article>)}</section>{!matches.length && <div className="coach-empty"><CoachGlyph name="search" /><strong>No matching clients</strong><span>Change search or filter.</span></div>}{showCreate && <NewClientForm onCancel={() => setShowCreate(false)} onCreate={onCreateClient} />}</section>
 }
 
-function CoachReview({ client, navigate }) {
-  const preview = getClientPreview(client)
-  const [tab, setTab] = useState('Overview')
-  const [note, setNote] = useState('')
-  const [notes, setNotes] = useState([preview.context])
-  const [setupSaved, setSetupSaved] = useState(false)
-  const [setup, setSetup] = useState({ goal: client.goal, targetWeight: preview.targetWeight, checkInDay: client.checkInDay, measurements: 'Weight, waist', context: `${preview.restrictions}. ${preview.consideration}.`, note: preview.context })
-  const saveNote = (event) => { event.preventDefault(); if (!note.trim()) return; setNotes((current) => [note.trim(), ...current]); setNote('') }
-  const setSetupField = (field, value) => setSetup((current) => ({ ...current, [field]: value }))
-  const hasSignal = Boolean(preview.points)
-  const content = {
-    Overview: <><section className="coach-review-metrics"><article><p>CURRENT WEIGHT</p><strong>{client.weight}</strong><span>Last entry {client.lastEntry.toLowerCase()}</span></article><article><p>CHECK-IN</p><strong>{client.checkIn}</strong><span>Scheduled {client.checkInDay}</span></article><article><p>PLAN ADHERENCE</p><strong>{preview.adherence}</strong><span>Logged sessions this week</span></article><article><p>DATA QUALITY</p><strong className={client.attention ? 'attention-text' : 'lime-text'}>{client.attention ? 'Review' : 'Good'}</strong><span>{client.attention ? 'Signal needs attention' : 'Enough recent data'}</span></article></section><section className="coach-review-grid"><article className="panel"><header><div><p className="kicker">COACH SUMMARY</p><span>Single client context.</span></div><button className="quiet-link" onClick={() => setTab('Setup')}>Edit setup <CoachGlyph name="chevron" /></button></header><dl className="coach-detail-list"><div><dt>Goal</dt><dd>{setup.goal}</dd></div><div><dt>Target</dt><dd>{setup.targetWeight} · {preview.targetWaist}</dd></div><div><dt>Restrictions</dt><dd>{preview.restrictions}</dd></div><div><dt>Training consideration</dt><dd>{preview.consideration}</dd></div></dl></article><article className="panel"><header><div><p className="kicker">NEXT REVIEW</p><span>Priority signal.</span></div><Status tone={client.attention ? 'warning' : 'good'}>{client.status}</Status></header><div className="coach-review-callout"><CoachGlyph name={client.attention ? 'alert' : 'check'} /><div><strong>{client.attention ? 'Close missing signal first.' : 'Client is progressing steadily.'}</strong><span>{client.attention ? preview.context : 'Review check-in, then consider next target adjustment.'}</span></div></div></article></section></>,
-    Progress: hasSignal ? <section className="coach-review-grid"><article className="panel coach-progress-panel"><header><div><p className="kicker">WEIGHT TREND</p><span>Selected client local preview.</span></div><Status tone="preview">LOCAL</Status></header><div className="coach-line-chart"><svg viewBox="0 0 640 210" preserveAspectRatio="none"><path d="M0 40H640M0 105H640M0 170H640" /><polyline points={preview.points} /></svg><span>{preview.start}</span><strong>{client.weight}</strong></div><footer><span>14 AUG</span><span>{preview.change}</span><span>20 AUG</span></footer></article><article className="panel"><header><div><p className="kicker">TARGETS & PACE</p><span>Coach-owned targets.</span></div></header><div className="coach-target-list"><div><span>Weight target</span><strong>{setup.targetWeight}</strong><i><b style={{ width: preview.targetProgress }} /></i></div><div><span>Waist target</span><strong>{preview.targetWaist}</strong><i><b style={{ width: preview.waistProgress }} /></i></div><div><span>Target date</span><strong>{preview.targetDate}</strong></div></div></article></section> : <div className="coach-empty"><CoachGlyph name="trend" /><strong>No trend yet</strong><span>First body entry starts selected client progress.</span></div>,
-    'Check-ins': <article className="panel"><header><div><p className="kicker">WEEKLY CHECK-IN</p><span>Selected client-reported context.</span></div><Status tone={client.checkIn === 'Submitted' ? 'good' : 'warning'}>{client.checkIn.toUpperCase()}</Status></header><div className="coach-checkin-grid"><div><small>ENERGY</small><strong>{preview.energy}</strong></div><div><small>SLEEP</small><strong>{preview.sleep}</strong></div><div><small>PROGRESS</small><strong>{preview.sentiment}</strong></div><div><small>ADHERENCE</small><strong>{preview.adherence} days</strong></div></div><div className="coach-checkin-copy"><strong>What went well</strong><p>{preview.whatWentWell}</p><strong>Coach context</strong><p>{preview.context}</p></div></article>,
-    Photos: <section className="coach-photo-review">{['Front', 'Side', 'Back'].map((view, index) => <article key={view}><span>{view.toUpperCase()}</span><div>{hasSignal && index < 2 ? 'Private photo preview\nbackend storage required' : 'No photo uploaded'}</div><small>{hasSignal && index < 2 ? 'Review after secure upload' : '—'}</small></article>)}</section>,
-    Plans: <section className="coach-review-grid"><article className="panel"><header><div><p className="kicker">WORKOUT PLAN</p><span>{preview.program} · {preview.programWeek}</span></div><button className="quiet-link" onClick={() => navigate('Workout')}>Open plan <CoachGlyph name="chevron" /></button></header><div className="coach-mini-plan"><strong>{preview.sessions === '—' ? 'Not assigned' : '4 movements'}</strong><span>{preview.sessions === '—' ? 'Assign workout plan from coach workspace.' : `${preview.sessions} sessions this week · published preview`}</span></div></article><article className="panel"><header><div><p className="kicker">MEAL PLAN</p><span>{preview.mealPlan} · {preview.nutrition === '—' ? 'No target' : `${preview.nutrition} kcal`}</span></div><button className="quiet-link" onClick={() => navigate('Nutrition')}>Open plan <CoachGlyph name="chevron" /></button></header><div className="coach-mini-plan"><strong>{preview.meals.length ? '3 meal blocks' : 'Not assigned'}</strong><span>{preview.meals.length ? `${preview.restrictions} · reviewed preview` : 'Assign nutrition plan from coach workspace.'}</span></div></article></section>,
-    Notes: <section className="coach-review-grid"><form className="panel coach-note-form" onSubmit={saveNote}><header><div><p className="kicker">PRIVATE COACH NOTE</p><span>Visible to coach only.</span></div><Status tone="preview">LOCAL</Status></header><textarea value={note} onChange={(event) => setNote(event.target.value)} rows="6" placeholder="Add decision context, follow-up or plan rationale…" /><footer><span>Backend adds author, timestamp and audit record.</span><button className="coach-primary" type="submit">Save note</button></footer></form><article className="panel"><header><div><p className="kicker">RECENT NOTES</p><span>{notes.length} in preview</span></div></header><div className="coach-note-list">{notes.map((item, index) => <div key={`${item}-${index}`}><strong>Coach · today</strong><p>{item}</p></div>)}</div></article></section>,
-    Setup: <article className="panel coach-setup-panel"><header><div><p className="kicker">CLIENT SETUP</p><span>Goals, check-in cadence, restrictions and tracking choices.</span></div><Status tone="preview">LOCAL</Status></header><form onSubmit={(event) => { event.preventDefault(); setSetupSaved(true) }} className="coach-settings-form"><label>Primary goal<select value={setup.goal} onChange={(event) => setSetupField('goal', event.target.value)}><option>Fat loss</option><option>Body recomposition</option><option>Strength</option><option>Performance</option></select></label><label>Weight target<input value={setup.targetWeight} onChange={(event) => setSetupField('targetWeight', event.target.value)} /></label><label>Weekly check-in day<select value={setup.checkInDay} onChange={(event) => setSetupField('checkInDay', event.target.value)}><option>Sunday</option><option>Wednesday</option><option>Friday</option></select></label><label>Enabled measurements<select value={setup.measurements} onChange={(event) => setSetupField('measurements', event.target.value)}><option>Weight, waist</option><option>Weight, waist, body fat</option><option>Weight only</option></select></label><label className="wide-field">Preferences, allergies and injuries<textarea rows="4" value={setup.context} onChange={(event) => setSetupField('context', event.target.value)} /></label><label className="wide-field">Private coach context<textarea rows="3" value={setup.note} onChange={(event) => setSetupField('note', event.target.value)} /></label><footer><span>{setupSaved ? 'Setup saved in local preview.' : 'Changes remain in local preview.'}</span><button className="coach-primary">Save setup</button></footer></form></article>,
-  }
-  return <section className="coach-page"><CoachHeading eyebrow={`CLIENT REVIEW / ${client.id}`} title={client.name} copy={`${setup.goal} · one unified review surface.`} action={<button className="coach-quiet-button" onClick={() => navigate('Clients')}><CoachGlyph name="clients" />Back to clients</button>} /><div className="coach-review-tabs">{reviewTabs.map((item) => <button className={tab === item ? 'selected' : ''} onClick={() => setTab(item)} key={item}>{item}</button>)}</div><div className="coach-review-content">{content[tab]}</div></section>
-}
-
-function CoachBodyTracker({ clientId, clients, setClientId, openReview }) {
-  const client = clients.find((item) => item.id === clientId) ?? clients[0]
-  const preview = getClientPreview(client)
-  const hasSignal = Boolean(preview.points)
-  const alerts = preview.alert ? [[preview.alert, preview.alertDetail], ['Measurements need review.', client.attention ? 'Update client setup before interpreting trends.' : 'Last waist entry is still current.']] : []
-  return <section className="coach-page"><CoachHeading eyebrow="COACH / BODY INTELLIGENCE" title="Body Tracker" copy="Raw entries, protected calculations, targets and data quality." action={<ClientSelect clientId={client.id} clients={clients} onChange={setClientId} />} /><section className="coach-metric-grid coach-four"><article><p>CURRENT WEIGHT</p><strong>{client.weight}</strong><span>Latest client entry</span></article><article><p>7 DAY AVERAGE</p><strong>{preview.average}</strong><span>Rolling calculation</span></article><article><p>TRACKING RATE</p><strong className={client.attention ? 'attention-text' : 'lime-text'}>{preview.tracking}</strong><span>Last 7 days</span></article><article><p>DATA QUALITY</p><strong className={client.attention ? 'attention-text' : 'lime-text'}>{client.attention ? 'Review' : 'Good'}</strong><span>Threshold preview</span></article></section><section className="coach-review-grid"><article className="panel coach-progress-panel"><header><div><p className="kicker">WEIGHT TREND</p><span>Daily raw entries, rolling average available.</span></div><button className="quiet-link" onClick={openReview}>Open client review <CoachGlyph name="chevron" /></button></header>{hasSignal ? <><div className="coach-line-chart"><svg viewBox="0 0 640 210" preserveAspectRatio="none"><path d="M0 40H640M0 105H640M0 170H640" /><polyline points={preview.points} /></svg><span>{preview.start}</span><strong>{client.weight}</strong></div><footer><span>14 AUG</span><span>{preview.change}</span><span>20 AUG</span></footer></> : <div className="coach-empty"><CoachGlyph name="trend" /><strong>No selected-client trend</strong><span>Add first body entry to calculate progress.</span></div>}</article><article className="panel"><header><div><p className="kicker">STATUS & ALERTS</p><span>Derived from configured thresholds.</span></div><Status tone={client.attention ? 'warning' : 'good'}>{client.status}</Status></header>{alerts.length ? <div className="coach-alert-list">{alerts.map(([message, detail]) => <div key={message}><CoachGlyph name="alert" /><span><strong>{message}</strong><small>{detail}</small></span></div>)}</div> : <div className="coach-review-callout"><CoachGlyph name="check" /><div><strong>No active body-data alert.</strong><span>Selected client has recent signal in this local preview.</span></div></div>}<button className="coach-secondary" onClick={() => openReview()}>Review client context</button></article></section><article className="panel coach-data-table"><header><div><p className="kicker">WEEKLY DATA QUALITY</p><span>Raw data stays separate from calculated results.</span></div><Status tone="preview">PREVIEW</Status></header>{hasSignal ? <div className="coach-table"><div className="coach-table-head"><span>WEEK</span><span>AVG WEIGHT</span><span>Δ WEEK</span><span>WAIST</span><span>ENTRIES</span><span>CHECK-IN</span></div><div className="coach-table-row"><span>18–24 AUG</span><span>{preview.average}</span><span className="lime-text">{preview.change}</span><span>{preview.targetWaist}</span><span>{preview.tracking}</span><span>{client.checkIn}</span></div></div> : <div className="coach-empty"><CoachGlyph name="file" /><strong>No weekly data yet</strong><span>First entries make data-quality review available.</span></div>}</article></section>
-}
-
 function CoachNutrition({ clientId, clients, setClientId, accessToken }) {
   const client = clients.find((item) => item.id === clientId) ?? clients[0]
   return <section className="coach-page"><CoachHeading eyebrow="COACH / NUTRITION PLANS" title="Nutrition" copy="Build precise meal plans. Assign portions, targets and substitutions." action={<ClientSelect clientId={clientId} clients={clients} onChange={setClientId} />} /><NutritionPlanBuilder client={client} accessToken={accessToken} /></section>
@@ -265,7 +260,11 @@ function PersistedCoachReview({ client, accessToken, navigate, onNotice, bodyOnl
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+  const [savingNote, setSavingNote] = useState(false)
+  const [savingSetup, setSavingSetup] = useState(false)
+  const [noteDraft, setNoteDraft] = useState('')
   const [draft, setDraft] = useState({ client_visible_coach_note: '', training_considerations: '', safety_notice: '' })
+  const [setupDraft, setSetupDraft] = useState(setupDraftFromReview())
   const photoUrls = useRef([])
   const releasePhotoUrls = useCallback(() => {
     photoUrls.current.forEach((url) => URL.revokeObjectURL(url))
@@ -281,11 +280,13 @@ function PersistedCoachReview({ client, accessToken, navigate, onNotice, bodyOnl
       const result = await coachApi.getClientReview(client.id, accessToken)
       if (requestId !== reviewRequest.current) return
       setReview(result)
+      setNoteDraft('')
       setDraft({
         client_visible_coach_note: result.coaching_context.client_visible_coach_note || '',
         training_considerations: (result.coaching_context.training_considerations || []).join('\n'),
         safety_notice: result.coaching_context.safety_notice || '',
       })
+      setSetupDraft(setupDraftFromReview(result.setup))
     } catch (reason) {
       if (requestId === reviewRequest.current) setError(reason.message || 'Could not load this protected client record.')
     } finally {
@@ -312,20 +313,63 @@ function PersistedCoachReview({ client, accessToken, navigate, onNotice, bodyOnl
     }
   }
 
+  const saveNote = async (event) => {
+    event.preventDefault()
+    const note = noteDraft.trim()
+    if (!note) return
+    setSavingNote(true)
+    try {
+      const created = await coachApi.createPrivateNote(client.id, { note }, accessToken)
+      setReview((current) => ({ ...current, private_notes: [created, ...(current.private_notes || [])] }))
+      setNoteDraft('')
+      onNotice('Private note saved.')
+    } catch (reason) {
+      onNotice(reason.message || 'Could not save private note.')
+    } finally {
+      setSavingNote(false)
+    }
+  }
+
+  const saveSetup = async (event) => {
+    event.preventDefault()
+    setSavingSetup(true)
+    try {
+      const setup = await coachApi.updateClientSetup(client.id, {
+        primary_goal: setupDraft.primary_goal,
+        check_in_day: setupDraft.check_in_day,
+        dietary_preferences: setupDraft.dietary_preferences,
+        allergies_injuries: setupDraft.allergies_injuries,
+        enabled_measurements: setupDraft.enabled_measurements.split(','),
+        target_weight_kg: setupDraft.target_weight_kg === '' ? null : Number(setupDraft.target_weight_kg),
+        target_waist_cm: setupDraft.target_waist_cm === '' ? null : Number(setupDraft.target_waist_cm),
+        target_date: setupDraft.target_date || null,
+      }, accessToken)
+      setReview((current) => ({ ...current, setup }))
+      setSetupDraft(setupDraftFromReview(setup))
+      onNotice('Setup saved.')
+    } catch (reason) {
+      onNotice(reason.message || 'Could not save client setup.')
+    } finally {
+      setSavingSetup(false)
+    }
+  }
+
   if (loading || (review && review.client.id !== client.id)) return <CoachNoClient loading />
   if (error) return <section className="coach-page"><section className="coach-empty"><CoachGlyph name="alert" /><strong>Protected client record unavailable</strong><span>{error}</span><button className="coach-secondary" type="button" onClick={load}>Try again</button></section></section>
   const bodyEntries = review.body_entries || []
   const checkins = review.checkins || []
-  const progressPhotos = review.progress_photos || []
-  const latest = bodyEntries[0]
+  const trend = bodyOnly ? null : weightTrend(bodyEntries)
+  const latest = bodyEntries.at(-1)
   const heading = bodyOnly ? 'Body Tracker' : review.client.full_name
   const copy = bodyOnly ? 'Raw entries recorded by this client. No calculated health conclusions are shown.' : 'Live client signals and client-scoped coaching context.'
+  const setSetupField = (field, value) => setSetupDraft((current) => ({ ...current, [field]: value }))
   return <section className="coach-page coach-has-photo-gallery">
     <CoachHeading eyebrow={`CLIENT REVIEW / ${review.client.client_code}`} title={heading} copy={copy} action={<button className="coach-quiet-button" onClick={() => navigate('Clients')}><CoachGlyph name="clients" />Back to clients</button>} />
     {!bodyOnly && <PhotoJournal key={client.id} clientId={client.id} token={accessToken} profile={review.client} checkIns={checkins} feedbackRevision={feedbackRevision} />}
     <section className="coach-metric-grid coach-three"><article><p>LATEST WEIGHT</p><strong>{latest ? `${latest.weight_kg}` : '—'}{latest && <small> kg</small>}</strong><span>{latest ? `Logged ${formatDate(latest.entry_date)}` : 'No body entry yet'}</span></article><article><p>BODY ENTRIES</p><strong>{bodyEntries.length}</strong><span>Last 100 authorized records</span></article><article><p>CHECK-INS</p><strong className={checkins.length ? 'lime-text' : 'attention-text'}>{checkins.length}</strong><span>{checkins.length ? `Latest ${formatDate(checkins[0].period_start)}` : 'No check-in submitted'}</span></article></section>
+    {!bodyOnly && (trend ? <article className="panel coach-progress-panel"><header><div><p className="kicker">WEIGHT TREND</p><span>Chronological client-recorded weights.</span></div><Status tone="good">LIVE</Status></header><div className="coach-line-chart"><svg viewBox="0 0 640 210" preserveAspectRatio="none"><path d="M0 40H640M0 105H640M0 170H640" /><polyline points={trend.points} /></svg><span>{trend.startKg} kg</span><strong>{trend.endKg} kg</strong></div><footer><span>{formatDate(trend.startDate)}</span><span>{trend.change > 0 ? '+' : trend.change < 0 ? '−' : ''}{Math.abs(trend.change)} kg</span><span>{formatDate(trend.endDate)}</span></footer></article> : <div className="coach-empty"><CoachGlyph name="trend" /><strong>No trend yet</strong><span>Two weight entries are required before a trend can be drawn.</span></div>)}
     <article className="panel coach-data-table"><header><div><p className="kicker">CLIENT-RECORDED BODY DATA</p><span>Visible only to this client and their assigned coach.</span></div><Status tone="good">LIVE</Status></header>{bodyEntries.length ? <div className="coach-table"><div className="coach-table-head"><span>DATE</span><span>WEIGHT</span><span>WAIST</span><span>HIP</span><span>BODY FAT</span><span>RECORD</span></div>{bodyEntries.map((entry) => <div className="coach-table-row" key={entry.id}><span>{formatDate(entry.entry_date)}</span><span>{entry.weight_kg} kg</span><span>{entry.waist_cm == null ? '—' : `${entry.waist_cm} cm`}</span><span>{entry.hip_cm == null ? '—' : `${entry.hip_cm} cm`}</span><span>{entry.body_fat_pct == null ? '—' : `${entry.body_fat_pct}%`}</span><Status tone="good">CLIENT</Status></div>)}</div> : <div className="coach-empty"><CoachGlyph name="trend" /><strong>No body entry yet</strong><span>Data will appear after this client records a check-in metric.</span></div>}</article>
-    {!bodyOnly && <><CoachCheckIns clientId={client.id} token={accessToken} onFeedbackSaved={() => setFeedbackRevision(value => value + 1)} /><ExerciseHistory load={loadWorkoutHistory} /><section className="coach-review-grid"><form className="panel coach-setup-panel" onSubmit={saveGuidance}><header><div><p className="kicker">CLIENT-VISIBLE GUIDANCE</p><span>Only the selected client and their assigned coach can read this.</span></div><Status tone="good">SCOPED</Status></header><div className="coach-settings-form"><label className="wide-field">Coach note<textarea rows="4" value={draft.client_visible_coach_note} onChange={(event) => setDraft((current) => ({ ...current, client_visible_coach_note: event.target.value }))} placeholder="Clear, actionable coaching guidance…" /></label><label className="wide-field">Training considerations <small>One per line</small><textarea rows="3" value={draft.training_considerations} onChange={(event) => setDraft((current) => ({ ...current, training_considerations: event.target.value }))} placeholder="e.g. Monitor knee comfort" /></label><label className="wide-field">Safety boundary<textarea rows="2" value={draft.safety_notice} onChange={(event) => setDraft((current) => ({ ...current, safety_notice: event.target.value }))} /></label><footer><span>Saving creates an audit event; it never changes another client’s record.</span><button className="coach-primary" type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save client guidance'}</button></footer></div></form><article className="panel"><header><div><p className="kicker">PRIVATE COACH NOTES</p><span>Not visible to the client.</span></div><Status tone="preview">COACH ONLY</Status></header>{review.private_notes.length ? <div className="coach-note-list">{review.private_notes.map((note) => <div key={note.id}><strong>{formatDate(note.created_at.slice(0, 10))}</strong><p>{note.note}</p></div>)}</div> : <div className="coach-empty"><CoachGlyph name="note" /><strong>No private notes</strong><span>Private notes continue to be separate from client-visible guidance.</span></div>}</article></section></>}
+    {!bodyOnly && <><CoachCheckIns clientId={client.id} token={accessToken} onFeedbackSaved={() => setFeedbackRevision(value => value + 1)} /><ExerciseHistory load={loadWorkoutHistory} /><section className="coach-review-grid"><form className="panel coach-setup-panel" onSubmit={saveGuidance}><header><div><p className="kicker">CLIENT-VISIBLE GUIDANCE</p><span>Only the selected client and their assigned coach can read this.</span></div><Status tone="good">SCOPED</Status></header><div className="coach-settings-form"><label className="wide-field">Coach note<textarea rows="4" value={draft.client_visible_coach_note} onChange={(event) => setDraft((current) => ({ ...current, client_visible_coach_note: event.target.value }))} placeholder="Clear, actionable coaching guidance…" /></label><label className="wide-field">Training considerations <small>One per line</small><textarea rows="3" value={draft.training_considerations} onChange={(event) => setDraft((current) => ({ ...current, training_considerations: event.target.value }))} placeholder="e.g. Monitor knee comfort" /></label><label className="wide-field">Safety boundary<textarea rows="2" value={draft.safety_notice} onChange={(event) => setDraft((current) => ({ ...current, safety_notice: event.target.value }))} /></label><footer><span>Saving creates an audit event; it never changes another client’s record.</span><button className="coach-primary" type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save client guidance'}</button></footer></div></form><section className="panel"><form className="coach-note-form" onSubmit={saveNote}><header><div><p className="kicker">PRIVATE COACH NOTES</p><span>Not visible to the client.</span></div><Status tone="good">COACH ONLY</Status></header><textarea value={noteDraft} onChange={(event) => setNoteDraft(event.target.value)} rows="5" maxLength="5000" placeholder="Add decision context, follow-up or plan rationale…" /><footer><span>Saving writes the note and an audit record.</span><button className="coach-primary" type="submit" disabled={savingNote || !noteDraft.trim()}>{savingNote ? 'Saving…' : 'Save note'}</button></footer></form>{review.private_notes.length ? <div className="coach-note-list">{review.private_notes.map((note) => <div key={note.id}><strong>{formatDate(note.created_at)}</strong><p>{note.note}</p></div>)}</div> : <div className="coach-empty"><CoachGlyph name="note" /><strong>No private notes</strong><span>Private notes continue to be separate from client-visible guidance.</span></div>}</section></section><article className="panel coach-setup-panel"><header><div><p className="kicker">CLIENT SETUP</p><span>Goals, check-in cadence, restrictions and tracking choices.</span></div><Status tone="good">LIVE</Status></header><form onSubmit={saveSetup} className="coach-settings-form"><label>Primary goal<select value={setupDraft.primary_goal} onChange={(event) => setSetupField('primary_goal', event.target.value)}><option value="fat_loss">Fat loss</option><option value="body_recomposition">Body recomposition</option><option value="strength">Strength</option><option value="performance">Performance</option></select></label><label>Weekly check-in day<select value={setupDraft.check_in_day} onChange={(event) => setSetupField('check_in_day', event.target.value)}>{['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map((day) => <option value={day} key={day}>{day[0].toUpperCase()}{day.slice(1)}</option>)}</select></label><label>Timezone<input value={setupDraft.timezone} readOnly /></label><label>Enabled measurements<select value={setupDraft.enabled_measurements} onChange={(event) => setSetupField('enabled_measurements', event.target.value)}><option value="weight_kg">Weight only</option><option value="weight_kg,waist_cm">Weight, waist</option><option value="weight_kg,waist_cm,body_fat_pct">Weight, waist, body fat</option><option value="weight_kg,waist_cm,hip_cm,body_fat_pct">Full body measurements</option></select></label><label>Weight target (kg)<input type="number" min="0.1" step="0.1" value={setupDraft.target_weight_kg} onChange={(event) => setSetupField('target_weight_kg', event.target.value)} /></label><label>Waist target (cm)<input type="number" min="0.1" step="0.1" value={setupDraft.target_waist_cm} onChange={(event) => setSetupField('target_waist_cm', event.target.value)} /></label><label>Target date<input type="date" value={setupDraft.target_date} onChange={(event) => setSetupField('target_date', event.target.value)} /></label><label className="wide-field">Dietary preferences<textarea rows="2" value={setupDraft.dietary_preferences} onChange={(event) => setSetupField('dietary_preferences', event.target.value)} /></label><label className="wide-field">Allergies, restrictions, injuries<textarea rows="3" value={setupDraft.allergies_injuries} onChange={(event) => setSetupField('allergies_injuries', event.target.value)} /></label><footer><span>Saving updates this client’s profile, measurements and active targets.</span><button className="coach-primary" type="submit" disabled={savingSetup}>{savingSetup ? 'Saving…' : 'Save setup'}</button></footer></form></article></>}
   </section>
 }
 

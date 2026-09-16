@@ -11,8 +11,12 @@ from app.schemas.coach import (
     ClientCoachingContextUpdate,
     ClientOnboardingCreate,
     ClientOnboardingResponse,
+    ClientSetup,
+    ClientSetupResponse,
     CoachClientListResponse,
     CoachClientReviewResponse,
+    CoachPrivateNote,
+    PrivateNoteCreate,
 )
 from app.schemas.nutrition_plan import (
     NutritionPlanDraftResponse,
@@ -186,6 +190,39 @@ def get_client_review(
     """Return body and check-in data RLS authorizes this coach to review."""
 
     return SupabaseCoachService(settings=settings, user=user).get_client_review(client_id)
+
+
+@router.post(
+    "/clients/{client_id}/private-notes",
+    response_model=CoachPrivateNote,
+    status_code=status.HTTP_201_CREATED,
+    responses=ERROR_RESPONSES,
+)
+def create_private_note(
+    client_id: str,
+    payload: PrivateNoteCreate,
+    settings: Settings = Depends(get_settings),
+    user: AuthenticatedUser = Depends(get_authenticated_user),
+):
+    """Append a coach-only private note for an assigned client."""
+
+    return SupabaseCoachService(settings=settings, user=user).save_private_note(client_id, payload)
+
+
+@router.patch(
+    "/clients/{client_id}/setup",
+    response_model=ClientSetupResponse,
+    responses=ERROR_RESPONSES,
+)
+def update_client_setup(
+    client_id: str,
+    payload: ClientSetup,
+    settings: Settings = Depends(get_settings),
+    user: AuthenticatedUser = Depends(get_authenticated_user),
+):
+    """Persist client setup owned by the assigned coach."""
+
+    return SupabaseCoachService(settings=settings, user=user).save_setup(client_id, payload)
 
 
 @router.get(

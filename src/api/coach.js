@@ -55,6 +55,16 @@ export const coachApi = {
   }),
   listClients: (accessToken) => request('/coach/clients', accessToken),
   getClientReview: (clientId, accessToken) => request(`/coach/clients/${clientId}/review`, accessToken),
+  createPrivateNote: (clientId, payload, accessToken) => request(`/coach/clients/${clientId}/private-notes`, accessToken, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }),
+  updateClientSetup: (clientId, payload, accessToken) => request(`/coach/clients/${clientId}/setup`, accessToken, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }),
   getPrivatePhotoUrl: (contentPath, accessToken) => privateObjectUrl(contentPath, accessToken),
   updateClientCoachingContext: (clientId, payload, accessToken) => request(`/coach/clients/${clientId}/coaching-context`, accessToken, {
     method: 'PATCH',

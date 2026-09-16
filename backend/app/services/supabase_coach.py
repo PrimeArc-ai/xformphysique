@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 import logging
 from typing import Any
 from urllib.parse import quote
@@ -8,7 +8,7 @@ from urllib.parse import quote
 from app.core.config import Settings
 from app.core.errors import APIError
 from app.core.supabase import AuthenticatedUser, SupabaseAdminGateway, SupabaseGateway
-from app.schemas.coach import ClientCoachingContextUpdate, ClientOnboardingCreate
+from app.schemas.coach import ClientCoachingContextUpdate, ClientOnboardingCreate, ClientSetup, PrivateNoteCreate
 from app.services.r2_photo_storage import R2PhotoStorage
 from app.services.progress import schedule
 
@@ -139,16 +139,18 @@ class SupabaseCoachService:
             {"client_id": f"eq.{client_id}", "order": "created_at.desc", "limit": 20},
         )
         photos = self._rows("progress_photos", {"client_id": f"eq.{client_id}", "deleted_at": "is.null", "limit": 100})
-        latest_entry = body_entries[0] if body_entries else None
+        latest_entry = max(body_entries, key=lambda item: item["entry_date"]) if body_entries else None
         latest_checkin = checkins[0] if checkins else None
+        ordered_entries = sorted(body_entries, key=lambda item: item["entry_date"])
         return {
             "client": self._client_list_item(client, profile, latest_entry, latest_checkin),
-            "body_entries": [self._body_entry(item) for item in body_entries],
+            "body_entries": [self._body_entry(item) for item in ordered_entries],
             "checkins": [self._checkin(item) for item in checkins],
             "photo_count": len(photos),
             "progress_photos": [self._progress_photo(item, client_id) for item in photos],
             "coaching_context": self._coaching_context(context),
             "private_notes": [self._private_note(item) for item in private_notes],
+            "setup": self._client_setup(client_id, client),
         }
 
     def get_client_progress_photo_content(self, client_id: str, photo_id: str) -> tuple[bytes, str, str]:
@@ -203,6 +205,113 @@ class SupabaseCoachService:
             },
         )
         return self._coaching_context(rows[0])
+
+    def save_private_note(self, client_id: str, payload: PrivateNoteCreate) -> dict[str, Any]:
+        """Append a coach-only note. Clients never read these rows."""
+
+        self._require_active_coach()
+        self._one("clients", {"id": f"eq.{client_id}"}, "client_not_found")
+        rows = self._write(
+            "POST",
+            "coach_private_notes",
+            {
+                "client_id": client_id,
+                "author_coach_id": self.user.id,
+                "note": payload.note,
+            },
+        )
+        if not rows:
+            raise APIError(503, "note_save_failed", "Private note was not saved")
+        self._write(
+            "POST",
+            "audit_events",
+            {
+                "actor_profile_id": self.user.id,
+                "client_id": client_id,
+                "action": "coach_note_saved",
+                "entity_type": "coach_private_note",
+                "entity_id": rows[0].get("id"),
+                "metadata": {"source": "coach_client_review"},
+            },
+        )
+        return self._private_note(rows[0])
+
+    def save_setup(self, client_id: str, payload: ClientSetup) -> dict[str, Any]:
+        """Persist Review setup: client profile, measurements, and active targets."""
+
+        self._require_active_coach()
+        self._one("clients", {"id": f"eq.{client_id}"}, "client_not_found")
+        self._write(
+            "PATCH",
+            "clients",
+            {
+                "primary_goal": payload.primary_goal,
+                "check_in_day": payload.check_in_day,
+                "dietary_preferences": payload.dietary_preferences,
+                "allergies_injuries": payload.allergies_injuries,
+            },
+            params={"id": f"eq.{client_id}"},
+        )
+        self._write(
+            "PATCH",
+            "client_tracking_preferences",
+            {
+                "enabled_measurements": payload.enabled_measurements,
+                "updated_by_coach_id": self.user.id,
+            },
+            params={"client_id": f"eq.{client_id}"},
+        )
+        self._upsert_active_target(client_id, "weight_kg", payload.target_weight_kg, payload.target_date)
+        self._upsert_active_target(client_id, "waist_cm", payload.target_waist_cm, payload.target_date)
+        self._write(
+            "POST",
+            "audit_events",
+            {
+                "actor_profile_id": self.user.id,
+                "client_id": client_id,
+                "action": "client_profile_updated",
+                "entity_type": "client",
+                "entity_id": client_id,
+                "metadata": {"source": "coach_client_review"},
+            },
+        )
+        return self._client_setup(client_id)
+
+    def _client_setup(self, client_id: str, client: dict[str, Any] | None = None) -> dict[str, Any]:
+        client = client or self._one("clients", {"id": f"eq.{client_id}"}, "client_not_found")
+        prefs = self._one_or_none("client_tracking_preferences", {"client_id": f"eq.{client_id}"})
+        targets = self._rows(
+            "client_targets",
+            {"client_id": f"eq.{client_id}", "is_active": "eq.true", "limit": 20},
+        )
+        return self._setup_payload(client, prefs, targets)
+
+    def _upsert_active_target(
+        self,
+        client_id: str,
+        metric: str,
+        value: float | None,
+        target_date: date | None,
+    ) -> None:
+        if value is None:
+            return
+        existing = self._one_or_none(
+            "client_targets",
+            {"client_id": f"eq.{client_id}", "metric": f"eq.{metric}", "is_active": "eq.true"},
+        )
+        fields = {
+            "target_value": value,
+            "target_date": target_date.isoformat() if target_date else None,
+            "set_by_profile_id": self.user.id,
+        }
+        if existing:
+            self._write("PATCH", "client_targets", fields, params={"id": f"eq.{existing['id']}"})
+            return
+        self._write(
+            "POST",
+            "client_targets",
+            {"client_id": client_id, "metric": metric, **fields},
+        )
 
     def _require_active_coach(self) -> None:
         profile = self._one("profiles", {"id": f"eq.{self.user.id}"}, "workspace_not_found")
@@ -341,6 +450,42 @@ class SupabaseCoachService:
     @staticmethod
     def _number(value: Any) -> float | None:
         return float(value) if value is not None else None
+
+    @staticmethod
+    def _optional_date(value: Any) -> date | None:
+        if value in (None, ""):
+            return None
+        if isinstance(value, date) and not isinstance(value, datetime):
+            return value
+        return date.fromisoformat(str(value)[:10])
+
+    def _setup_payload(
+        self,
+        client: dict[str, Any],
+        prefs: dict[str, Any] | None,
+        targets: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        by_metric = {row["metric"]: row for row in targets}
+        weight = by_metric.get("weight_kg")
+        waist = by_metric.get("waist_cm")
+        target_date = None
+        if weight and weight.get("target_date"):
+            target_date = self._optional_date(weight["target_date"])
+        elif waist and waist.get("target_date"):
+            target_date = self._optional_date(waist["target_date"])
+        return {
+            "primary_goal": client["primary_goal"],
+            "check_in_day": client["check_in_day"],
+            "timezone": client.get("timezone") or "Asia/Kolkata",
+            "dietary_preferences": client.get("dietary_preferences") or "",
+            "allergies_injuries": client.get("allergies_injuries") or "",
+            "enabled_measurements": list(
+                (prefs or {}).get("enabled_measurements") or ["weight_kg", "waist_cm"]
+            ),
+            "target_weight_kg": self._number(weight["target_value"]) if weight else None,
+            "target_waist_cm": self._number(waist["target_value"]) if waist else None,
+            "target_date": target_date,
+        }
 
     def _client_list_item(
         self,

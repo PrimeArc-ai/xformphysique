@@ -127,6 +127,13 @@ def test_assigned_coach_can_review_only_rls_returned_client_data(
                     }
                 ],
             )
+        if url.endswith("/rest/v1/client_tracking_preferences"):
+            return FakeResponse(
+                200,
+                [{"client_id": "client-a", "enabled_measurements": ["weight_kg", "waist_cm"]}],
+            )
+        if url.endswith("/rest/v1/client_targets"):
+            return FakeResponse(200, [])
         raise AssertionError(f"Unexpected request: {method} {url}")
 
     monkeypatch.setattr(httpx, "request", request)

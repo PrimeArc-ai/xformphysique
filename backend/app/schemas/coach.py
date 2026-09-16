@@ -96,6 +96,33 @@ class CoachPrivateNote(BaseModel):
     created_at: datetime
 
 
+class ClientSetup(CoachAPIModel):
+    primary_goal: str
+    check_in_day: Weekday
+    dietary_preferences: str = ""
+    allergies_injuries: str = ""
+    enabled_measurements: list[Measurement]
+    target_weight_kg: float | None = None
+    target_waist_cm: float | None = None
+    target_date: date | None = None
+
+
+class PrivateNoteCreate(CoachAPIModel):
+    note: Annotated[str, Field(min_length=1, max_length=5000)]
+
+
+class ClientSetupResponse(BaseModel):
+    primary_goal: str
+    check_in_day: Weekday
+    timezone: str
+    dietary_preferences: str = ""
+    allergies_injuries: str = ""
+    enabled_measurements: list[Measurement]
+    target_weight_kg: float | None = None
+    target_waist_cm: float | None = None
+    target_date: date | None = None
+
+
 class CoachProgressPhoto(BaseModel):
     """Metadata for a progress image an assigned coach may review."""
 
@@ -150,3 +177,4 @@ class CoachClientReviewResponse(BaseModel):
     progress_photos: list[CoachProgressPhoto]
     coaching_context: ClientCoachingContextResponse
     private_notes: list[CoachPrivateNote]
+    setup: ClientSetupResponse
