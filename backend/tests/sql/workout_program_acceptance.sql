@@ -99,6 +99,89 @@ do $$ declare v_draft jsonb; v_first jsonb; v_retry jsonb; begin
   perform pg_temp.assert_true((select count(*) = 36 from public.workout_exercises e join public.workout_sessions s on s.id=e.session_id where s.client_id='10000000-0000-0000-0000-000000000002'), 'expected thirty-six copied exercises');
   perform pg_temp.assert_true((select count(*) = 1 from public.training_programs where client_id='10000000-0000-0000-0000-000000000002' and status='published'), 'retry created another version');
 end $$;
+
+-- Assigned coaches may edit drafts directly, but published snapshots are
+-- immutable outside the SECURITY DEFINER publish transaction.
+do $$
+declare
+  v_program uuid;
+  v_before jsonb;
+  v_rows integer;
+  v_mutated_rows integer := 0;
+begin
+  select id
+  into v_program
+  from public.training_programs
+  where client_id = '10000000-0000-0000-0000-000000000002'
+    and status = 'published';
+
+  v_before := jsonb_build_array(
+    (select count(*) from public.training_programs where id = v_program),
+    (select count(*) from public.training_program_days where program_id = v_program),
+    (
+      select count(*)
+      from public.training_program_day_exercises e
+      join public.training_program_days d on d.id = e.program_day_id
+      where d.program_id = v_program
+    )
+  );
+
+  update public.training_programs
+  set name = 'Forbidden direct mutation'
+  where id = v_program;
+  get diagnostics v_rows = row_count;
+  v_mutated_rows := v_mutated_rows + v_rows;
+
+  update public.training_program_days
+  set name = 'Forbidden direct mutation'
+  where program_id = v_program;
+  get diagnostics v_rows = row_count;
+  v_mutated_rows := v_mutated_rows + v_rows;
+
+  update public.training_program_day_exercises e
+  set name = 'Forbidden direct mutation'
+  where exists (
+    select 1
+    from public.training_program_days d
+    where d.id = e.program_day_id
+      and d.program_id = v_program
+  );
+  get diagnostics v_rows = row_count;
+  v_mutated_rows := v_mutated_rows + v_rows;
+
+  delete from public.training_program_day_exercises e
+  where exists (
+    select 1
+    from public.training_program_days d
+    where d.id = e.program_day_id
+      and d.program_id = v_program
+  );
+  get diagnostics v_rows = row_count;
+  v_mutated_rows := v_mutated_rows + v_rows;
+
+  delete from public.training_program_days where program_id = v_program;
+  get diagnostics v_rows = row_count;
+  v_mutated_rows := v_mutated_rows + v_rows;
+
+  delete from public.training_programs where id = v_program;
+  get diagnostics v_rows = row_count;
+  v_mutated_rows := v_mutated_rows + v_rows;
+
+  perform pg_temp.assert_true(v_mutated_rows = 0, 'assigned coach mutated published snapshot directly');
+  perform pg_temp.assert_true(
+    v_before = jsonb_build_array(
+      (select count(*) from public.training_programs where id = v_program),
+      (select count(*) from public.training_program_days where program_id = v_program),
+      (
+        select count(*)
+        from public.training_program_day_exercises e
+        join public.training_program_days d on d.id = e.program_day_id
+        where d.program_id = v_program
+      )
+    ),
+    'published direct DML changed snapshot counts'
+  );
+end $$;
 reset role;
 select pg_temp.assert_true((select count(*)=1 from public.audit_events where client_id='10000000-0000-0000-0000-000000000002' and action='workout_program_published'), 'retry duplicated publish audit');
 select pg_temp.assert_true((select count(*)=2 from public.audit_events where client_id='10000000-0000-0000-0000-000000000002' and action='workout_program_draft_saved'), 'draft audit missing');
@@ -222,4 +305,4 @@ select pg_temp.assert_true(not has_function_privilege('authenticated','public.wo
 select pg_temp.assert_true(not has_function_privilege('authenticated','public.assert_valid_workout_program_snapshot(uuid,jsonb,uuid)','execute'), 'validator is public');
 select pg_temp.assert_true(not has_function_privilege('authenticated','public.generate_workout_program_sessions(uuid,uuid,date,date)','execute'), 'generator is public');
 rollback;
-\echo PASS: drafts, exact dates, immutable replacement, idempotency, retirement RLS, role isolation, invalid input rollback, audit
+\echo PASS: drafts, exact dates, published direct-DML guards, immutable replacement, idempotency, retirement RLS, role isolation, invalid input rollback, audit

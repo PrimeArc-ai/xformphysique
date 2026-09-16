@@ -43,6 +43,41 @@ alter table public.training_program_day_exercises enable row level security;
 grant select, insert, update, delete on public.training_program_day_exercises
   to authenticated, service_role;
 
+-- Published snapshots are mutated only by the SECURITY DEFINER publish RPC.
+-- Direct authenticated DML remains available for drafts.
+drop policy training_programs_manage_assigned_coach
+  on public.training_programs;
+create policy training_programs_manage_assigned_coach
+  on public.training_programs for all to authenticated
+  using (
+    public.can_manage_client(client_id)
+    and status = 'draft'
+  )
+  with check (
+    public.can_manage_client(client_id)
+    and created_by_coach_id = auth.uid()
+    and status = 'draft'
+  );
+
+drop policy training_program_days_manage_assigned_coach
+  on public.training_program_days;
+create policy training_program_days_manage_assigned_coach
+  on public.training_program_days for all to authenticated
+  using (exists (
+    select 1
+    from public.training_programs p
+    where p.id = program_id
+      and p.status = 'draft'
+      and public.can_manage_training_program(p.id)
+  ))
+  with check (exists (
+    select 1
+    from public.training_programs p
+    where p.id = program_id
+      and p.status = 'draft'
+      and public.can_manage_training_program(p.id)
+  ));
+
 create policy training_program_day_exercises_select_accessible
   on public.training_program_day_exercises for select to authenticated
   using (exists (
@@ -57,14 +92,18 @@ create policy training_program_day_exercises_manage_assigned_coach
   using (exists (
     select 1
     from public.training_program_days d
+    join public.training_programs p on p.id = d.program_id
     where d.id = program_day_id
-      and public.can_manage_training_program(d.program_id)
+      and p.status = 'draft'
+      and public.can_manage_training_program(p.id)
   ))
   with check (exists (
     select 1
     from public.training_program_days d
+    join public.training_programs p on p.id = d.program_id
     where d.id = program_day_id
-      and public.can_manage_training_program(d.program_id)
+      and p.status = 'draft'
+      and public.can_manage_training_program(p.id)
   ));
 
 create or replace function public.can_access_workout_session(target_session_id uuid)
