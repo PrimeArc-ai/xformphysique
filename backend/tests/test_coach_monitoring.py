@@ -228,6 +228,30 @@ def test_client_cannot_read_coach_review(monkeypatch: pytest.MonkeyPatch) -> Non
     assert error.value.code == "coach_role_required"
 
 
+def test_unassigned_client_review_is_forbidden(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Health reuses get_client_review; an unassigned id must surface 403, not invented data."""
+
+    def request(method: str, url: str, **kwargs):
+        params = kwargs.get("params", {})
+        if url.endswith("/rest/v1/profiles"):
+            if params.get("id") == "eq.coach-id":
+                return FakeResponse(200, [{"id": "coach-id", "role": "coach"}])
+            return FakeResponse(200, [])
+        if url.endswith("/rest/v1/coaches"):
+            return FakeResponse(200, [{"id": "coach-id", "is_active": True}])
+        if url.endswith("/rest/v1/clients"):
+            return FakeResponse(200, [])
+        raise AssertionError(f"Unassigned review must stop at the client lookup: {method} {url}")
+
+    monkeypatch.setattr(httpx, "request", request)
+
+    with pytest.raises(APIError) as error:
+        coach_service().get_client_review("unassigned-id")
+
+    assert error.value.status_code == 403
+    assert error.value.code == "client_not_found"
+
+
 def test_coach_context_update_is_targeted_and_audited(monkeypatch: pytest.MonkeyPatch) -> None:
     writes: list[tuple[str, dict, dict]] = []
 

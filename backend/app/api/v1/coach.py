@@ -7,6 +7,7 @@ from app.core.config import Settings, get_settings
 from app.core.supabase import AuthenticatedUser, get_authenticated_user
 from app.schemas.client import ErrorResponse, WeeklyFeedback, CheckInsResponse, ProgressPhotosResponse
 from app.schemas.coach import (
+    AuditEventList,
     ClientCoachingContextResponse,
     ClientCoachingContextUpdate,
     ClientOnboardingCreate,
@@ -327,6 +328,18 @@ def save_coach_settings(
     """Persist coach-wide units, check-in day, thresholds and enabled measurements."""
 
     return SupabaseCoachService(settings=settings, user=user).save_settings(payload)
+
+
+@router.get("/audit-events", response_model=AuditEventList, responses=ERROR_RESPONSES)
+def list_audit_events(
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    settings: Settings = Depends(get_settings),
+    user: AuthenticatedUser = Depends(get_authenticated_user),
+):
+    """List audit events this coach recorded. Other coaches' rows are never returned."""
+
+    return SupabaseCoachService(settings=settings, user=user).list_audit_events(limit, offset)
 
 
 @router.get(

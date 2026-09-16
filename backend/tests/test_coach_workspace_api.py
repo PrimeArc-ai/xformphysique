@@ -883,3 +883,91 @@ def test_get_settings_returns_existing_row_without_insert(monkeypatch: pytest.Mo
     assert result["default_check_in_day"] == "friday"
     assert result["default_missing_weight_threshold_days"] == 7
     assert not any(method == "POST" and path.endswith("/rest/v1/coach_settings") for method, path, _ in seen)
+
+
+def test_list_audit_events_filters_actor_and_sets_has_more(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Audit list must query only this coach's actor rows and use limit+1 for has_more."""
+
+    seen_params: list[dict] = []
+    service = coach_service()
+
+    def request(method: str, path: str, **kwargs):
+        params = kwargs.get("params") or {}
+        identity = _coach_identity(path, params)
+        if identity is not None:
+            return identity
+        if path.endswith("/rest/v1/audit_events") and method == "GET":
+            seen_params.append(params)
+            return FakeResponse(
+                200,
+                [
+                    {
+                        "id": "audit-1",
+                        "action": "nutrition_plan_published",
+                        "entity_type": "nutrition_plan",
+                        "entity_id": "plan-1",
+                        "client_id": "client-1",
+                        "metadata": {"source": "coach_portal"},
+                        "occurred_at": "2026-09-16T12:00:00+00:00",
+                    },
+                    {
+                        "id": "audit-2",
+                        "action": "coach_settings_saved",
+                        "entity_type": "coach_settings",
+                        "entity_id": "coach-id",
+                        "client_id": None,
+                        "metadata": {"unit": "kg", "threshold": 3},
+                        "occurred_at": "2026-09-15T12:00:00+00:00",
+                    },
+                    {
+                        "id": "audit-3",
+                        "action": "client_created",
+                        "entity_type": "client",
+                        "entity_id": "client-1",
+                        "client_id": "client-1",
+                        "metadata": {"source": "coach_portal"},
+                        "occurred_at": "2026-09-14T12:00:00+00:00",
+                    },
+                ],
+            )
+        raise AssertionError(f"Unexpected request: {method} {path}")
+
+    monkeypatch.setattr(service.gateway, "request", request)
+    result = service.list_audit_events(limit=2, offset=0)
+
+    assert seen_params == [
+        {
+            "select": "*",
+            "actor_profile_id": "eq.coach-id",
+            "order": "occurred_at.desc",
+            "limit": 3,
+            "offset": 0,
+        }
+    ]
+    assert result["has_more"] is True
+    assert [item["id"] for item in result["items"]] == ["audit-1", "audit-2"]
+    assert result["items"][0]["action"] == "nutrition_plan_published"
+    assert result["items"][0]["client_id"] == "client-1"
+    assert result["items"][1]["client_id"] is None
+    assert result["items"][1]["metadata"] == {"unit": "kg", "threshold": 3}
+
+
+def test_list_audit_events_empty_has_no_more(monkeypatch: pytest.MonkeyPatch) -> None:
+    service = coach_service()
+
+    def request(method: str, path: str, **kwargs):
+        params = kwargs.get("params") or {}
+        identity = _coach_identity(path, params)
+        if identity is not None:
+            return identity
+        if path.endswith("/rest/v1/audit_events") and method == "GET":
+            assert params["actor_profile_id"] == "eq.coach-id"
+            assert params["limit"] == 51
+            assert params["offset"] == 0
+            return FakeResponse(200, [])
+        raise AssertionError(f"Unexpected request: {method} {path}")
+
+    monkeypatch.setattr(service.gateway, "request", request)
+    result = service.list_audit_events()
+
+    assert result == {"items": [], "has_more": False}

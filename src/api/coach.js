@@ -92,6 +92,7 @@ export const coachApi = {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   }),
+  listAuditEvents: (accessToken, limit = 50, offset = 0) => request(`/coach/audit-events?limit=${limit}&offset=${offset}`, accessToken),
   getPrivatePhotoUrl: (contentPath, accessToken) => privateObjectUrl(contentPath, accessToken),
   updateClientCoachingContext: (clientId, payload, accessToken) => request(`/coach/clients/${clientId}/coaching-context`, accessToken, {
     method: 'PATCH',

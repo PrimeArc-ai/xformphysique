@@ -431,6 +431,24 @@ class SupabaseCoachService:
         )
         return self._settings_payload(row)
 
+    def list_audit_events(self, limit: int = 50, offset: int = 0) -> dict[str, Any]:
+        """Return this coach's own audit rows, newest first. Never queries other actors."""
+
+        self._require_active_coach()
+        rows = self._rows(
+            "audit_events",
+            {
+                "actor_profile_id": f"eq.{self.user.id}",
+                "order": "occurred_at.desc",
+                "limit": limit + 1,
+                "offset": offset,
+            },
+        )
+        return {
+            "items": [self._audit_event(row) for row in rows[:limit]],
+            "has_more": len(rows) > limit,
+        }
+
     @staticmethod
     def _settings_payload(row: dict[str, Any]) -> dict[str, Any]:
         return {
@@ -439,6 +457,19 @@ class SupabaseCoachService:
             "default_missing_weight_threshold_days": int(row["default_missing_weight_threshold_days"]),
             "default_measurement_refresh_threshold_days": int(row["default_measurement_refresh_threshold_days"]),
             "enabled_measurements": list(row.get("enabled_measurements") or ["weight_kg", "waist_cm"]),
+        }
+
+    @staticmethod
+    def _audit_event(row: dict[str, Any]) -> dict[str, Any]:
+        metadata = row.get("metadata")
+        return {
+            "id": row["id"],
+            "action": row["action"],
+            "entity_type": row["entity_type"],
+            "entity_id": row.get("entity_id"),
+            "client_id": row.get("client_id"),
+            "metadata": metadata if isinstance(metadata, dict) else {},
+            "occurred_at": row["occurred_at"],
         }
 
     def _audit_library(self, action: str, entity_type: str, item: dict[str, Any]) -> None:

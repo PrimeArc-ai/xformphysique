@@ -265,3 +265,18 @@ class CoachSettingsResponse(BaseModel):
     default_missing_weight_threshold_days: int
     default_measurement_refresh_threshold_days: int
     enabled_measurements: list[Measurement]
+
+
+class AuditEvent(BaseModel):
+    id: str
+    action: str
+    entity_type: str
+    entity_id: str | None = None
+    client_id: str | None = None
+    metadata: dict = Field(default_factory=dict)
+    occurred_at: datetime
+
+
+class AuditEventList(BaseModel):
+    items: list[AuditEvent]
+    has_more: bool

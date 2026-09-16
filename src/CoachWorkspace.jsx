@@ -30,6 +30,13 @@ function formatDate(value) {
   return new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(`${String(value).slice(0, 10)}T00:00:00`))
 }
 
+function formatDateTime(value) {
+  if (!value) return '—'
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return String(value)
+  return new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(parsed)
+}
+
 function weightTrend(entries) {
   const points = [...(entries || [])]
     .filter((entry) => Number.isFinite(Number(entry.weight_kg)))
@@ -585,12 +592,90 @@ function CoachSettings({ notice, account, profilePhoto, onUploadProfilePhoto, ac
   )
 }
 
-function CoachHealth() {
-  return <section className="coach-page"><CoachHeading eyebrow="COACH / HEALTH RECORDS" title="Health" copy="Private records need secure storage, access control and review workflow." /><section className="coach-placeholder"><span><CoachGlyph name="lock" /></span><h3>Health record review comes with backend.</h3><p>Blood reports, uploads, extraction, comparison and access audit must not be mocked as real data. This frontend shell reserves protected space without claiming medical analysis.</p><div><Status tone="preview">FRONTEND SHELL</Status><Status>NO DIAGNOSIS</Status></div></section></section>
+function CoachHealth({ clientId, clients, setClientId, accessToken, navigate }) {
+  const client = clients.find((item) => item.id === clientId) ?? clients[0]
+  const [review, setReview] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  const load = useCallback(async () => {
+    if (!client?.id) return
+    setLoading(true)
+    setError('')
+    setReview(null)
+    try {
+      const result = await coachApi.getClientReview(client.id, accessToken)
+      setReview(result)
+    } catch (reason) {
+      setError(reason.message || 'Could not load this protected client record.')
+    } finally {
+      setLoading(false)
+    }
+  }, [accessToken, client?.id])
+
+  useEffect(() => { load() }, [load])
+
+  const allergies = review?.setup?.allergies_injuries || ''
+  const context = review?.coaching_context || {}
+  const considerations = context.training_considerations || []
+
+  return <section className="coach-page">
+    <CoachHeading eyebrow="COACH / HEALTH CONTEXT" title="Health" copy="Coaching support only. Not medical advice. Safety context from the assigned client record — not a lab archive." action={<ClientSelect clientId={clientId} clients={clients} onChange={setClientId} />} />
+    {loading && <div className="coach-empty"><CoachGlyph name="health" /><strong>Loading health context…</strong><span>Assigned-client safety fields only.</span></div>}
+    {!loading && error && <section className="coach-empty"><CoachGlyph name="alert" /><strong>Protected client record unavailable</strong><span>{error}</span><button className="coach-secondary" type="button" onClick={load}>Try again</button></section>}
+    {!loading && !error && review && <article className="panel">
+      <header>
+        <div>
+          <p className="kicker">ASSIGNED CLIENT SAFETY</p>
+          <span>Live from review setup and coaching context. Coaching support only. Not medical advice.</span>
+        </div>
+        <Status tone="good">LIVE</Status>
+      </header>
+      <div className="coach-security-list">
+        <div><strong>Allergies, restrictions, injuries</strong><span>{allergies || 'None recorded.'}</span></div>
+        <div><strong>Safety notice</strong><span>{context.safety_notice || 'None recorded.'}</span></div>
+        <div><strong>Training considerations</strong><span>{considerations.length ? considerations.join(', ') : 'None recorded.'}</span></div>
+        <div><strong>Client-visible coach note</strong><span>{context.client_visible_coach_note || 'None recorded.'}</span></div>
+      </div>
+      <footer><button className="coach-secondary" type="button" onClick={() => navigate('Review')}>Edit in Review</button></footer>
+    </article>}
+  </section>
 }
 
-function CoachAudit() {
-  return <section className="coach-page"><CoachHeading eyebrow="COACH / ACTIVITY RECORD" title="Audit Log" copy="Sensitive actions need backend-generated, immutable records." /><section className="coach-placeholder"><span><CoachGlyph name="file" /></span><h3>Audit trail waits for real events.</h3><p>Client updates, plan publication, note visibility and exports will appear here once API actions produce signed event records.</p><div><Status tone="preview">BACKEND REQUIRED</Status></div></section></section>
+function CoachAudit({ accessToken }) {
+  const [items, setItems] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const result = await coachApi.listAuditEvents(accessToken)
+      setItems(result.items || [])
+    } catch (reason) {
+      setError(reason.message || 'Could not load audit events.')
+      setItems([])
+    } finally {
+      setLoading(false)
+    }
+  }, [accessToken])
+
+  useEffect(() => { load() }, [load])
+
+  return <section className="coach-page">
+    <CoachHeading eyebrow="COACH / ACTIVITY RECORD" title="Audit Log" copy="Actions this authenticated coach recorded. Other coaches’ rows are never listed." />
+    {loading && <div className="coach-empty"><CoachGlyph name="audit" /><strong>Loading recorded actions…</strong></div>}
+    {!loading && error && <section className="coach-empty"><CoachGlyph name="alert" /><strong>Audit log unavailable</strong><span>{error}</span><button className="coach-secondary" type="button" onClick={load}>Try again</button></section>}
+    {!loading && !error && !items.length && <div className="coach-empty"><CoachGlyph name="file" /><strong>No recorded actions yet.</strong><span>Publish, notes, libraries and settings writes will appear here.</span></div>}
+    {!loading && !error && items.length > 0 && <article className="panel coach-data-table">
+      <header><div><p className="kicker">YOUR AUDIT EVENTS</p><span>Newest first. Metadata as stored.</span></div><Status tone="good">LIVE</Status></header>
+      <div className="coach-table" role="table" aria-label="Coach audit events">
+        <div className="coach-table-head" role="row"><span>WHEN</span><span>ACTION</span><span>ENTITY</span><span>CLIENT</span><span>METADATA</span></div>
+        {items.map((event) => <div className="coach-table-row" role="row" key={event.id}><span>{formatDateTime(event.occurred_at)}</span><span>{event.action}</span><span>{event.entity_type}</span><span>{event.client_id || '—'}</span><span>{JSON.stringify(event.metadata || {})}</span></div>)}
+      </div>
+    </article>}
+  </section>
 }
 
 function CoachNoClient({ loading, onCreate }) {
@@ -788,7 +873,7 @@ export default function CoachWorkspace({ account, accessToken, onSignOut }) {
     }
   }, [accessToken])
   useEffect(() => { loadClients() }, [loadClients])
-  const pageCopy = { Overview: ['Command Center', 'Precision coaching, progress intelligence and client operations.'], Clients: ['Clients', 'Every client record, one controlled workspace.'], Review: ['Client Review', 'Unified history, plans and private coach context.'], 'Body Tracker': ['Body Tracker', 'Raw data, calculation engine and longitudinal progress.'], Nutrition: ['Nutrition', 'Build precise plans from controlled nutrition data.'], Workout: ['Workout', 'Build, publish and review training programs.'], Libraries: ['Libraries', 'Food and exercise source libraries.'], Settings: ['Settings', 'Coach-wide configuration and controlled data tools.'], Health: ['Health', 'Private records and review boundaries.'], 'Audit Log': ['Audit Log', 'Backend-generated platform activity.'] }
+  const pageCopy = { Overview: ['Command Center', 'Precision coaching, progress intelligence and client operations.'], Clients: ['Clients', 'Every client record, one controlled workspace.'], Review: ['Client Review', 'Unified history, plans and private coach context.'], 'Body Tracker': ['Body Tracker', 'Raw data, calculation engine and longitudinal progress.'], Nutrition: ['Nutrition', 'Build precise plans from controlled nutrition data.'], Workout: ['Workout', 'Build, publish and review training programs.'], Libraries: ['Libraries', 'Food and exercise source libraries.'], Settings: ['Settings', 'Coach-wide configuration and controlled data tools.'], Health: ['Health', 'Assigned-client safety context. Not medical advice.'], 'Audit Log': ['Audit Log', 'Actions recorded for this authenticated coach.'] }
   const choose = (label) => { setActive(label); setNotice('') }
   const openReview = (id = selectedClientId) => { setSelectedClientId(id); choose('Review') }
   const addClient = (created) => {
@@ -817,7 +902,7 @@ export default function CoachWorkspace({ account, accessToken, onSignOut }) {
     setNotice(`${client.name} was created and sent a secure account-setup invitation.`)
     return created
   }
-  const requiresClient = ['Review', 'Body Tracker', 'Nutrition', 'Workout'].includes(active)
+  const requiresClient = ['Review', 'Body Tracker', 'Nutrition', 'Workout', 'Health'].includes(active)
   const unavailableClientPage = requiresClient && (!selectedClient || rosterLoading)
   const page = unavailableClientPage ? <CoachNoClient loading={rosterLoading} onCreate={() => setShowCreate(true)} />
     : active === 'Overview' ? <CoachOverview clients={clients} selectClient={openReview} navigate={choose} onCreate={() => setShowCreate(true)} />
@@ -828,8 +913,8 @@ export default function CoachWorkspace({ account, accessToken, onSignOut }) {
             : active === 'Workout' ? <CoachWorkout clientId={selectedClientId} clients={clients} setClientId={setSelectedClientId} accessToken={accessToken} />
               : active === 'Libraries' ? <CoachLibraries notice={setNotice} accessToken={accessToken} />
                 : active === 'Settings' ? <CoachSettings notice={setNotice} account={account} profilePhoto={profilePhoto} onUploadProfilePhoto={uploadProfilePhoto} accessToken={accessToken} />
-                  : active === 'Health' ? <CoachHealth />
-                    : <CoachAudit />
+                  : active === 'Health' ? <CoachHealth clientId={selectedClientId} clients={clients} setClientId={setSelectedClientId} accessToken={accessToken} navigate={choose} />
+                    : <CoachAudit accessToken={accessToken} />
   return <div className="os-shell coach-shell">
     <aside className="os-sidebar">
       <div className="os-brand" aria-label="XForm Coaching OS"><span className="xp-mark">XP</span><span><strong>XFORM</strong><small>COACHING OS</small></span></div>
