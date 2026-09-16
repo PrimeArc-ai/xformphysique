@@ -5,6 +5,9 @@ test-results/
 .worktrees/
 .env
 .env.local
+.github-pat
+.github-token
+.secrets/
 
 backend/.venv/
 backend/.env
