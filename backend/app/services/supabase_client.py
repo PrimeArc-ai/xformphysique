@@ -247,7 +247,11 @@ class SupabaseClientService:
         return {"meal_id": meal_id, "meal_name": meal["name"], "guide": guide, "uses_assigned_ingredients_only": True, "remaining_requests_today": 1}
 
     def get_workout_for_date(self, session_date: date) -> dict[str, Any]:
-        session = self._one("workout_sessions", {"client_id": f"eq.{self.client_id}", "session_date": f"eq.{session_date.isoformat()}", "retired_at": "is.null"}, "workout_session_not_found", "No workout session assigned for this date")
+        sessions = self._rows("workout_sessions", {"client_id": f"eq.{self.client_id}", "session_date": f"eq.{session_date.isoformat()}", "retired_at": "is.null"})
+        if not sessions:
+            raise APIError(404, "workout_session_not_found", "No workout session assigned for this date")
+        status_rank = {"completed": 0, "in_progress": 1, "ready": 2}
+        session = sorted(sessions, key=lambda item: (status_rank.get(item.get("status"), 9), item["id"]))[0]
         return self._workout_payload(session)
 
     def update_workout_session(self, session_id: str, payload: WorkoutSessionUpdate) -> dict[str, Any]:

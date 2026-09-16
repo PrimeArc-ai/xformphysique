@@ -71,6 +71,42 @@ def test_supabase_dashboard_today_and_update_only_read_active_workout_sessions()
     assert [params["retired_at"] for params in workout_session_reads] == ["is.null", "is.null", "is.null"]
 
 
+def test_get_workout_for_date_prefers_completed_over_ready_on_same_date():
+    payload_session_ids = []
+
+    def request(method, path, **kwargs):
+        params = kwargs.get("params") or {}
+        if method == "GET" and path == "/rest/v1/workout_sessions":
+            return SimpleNamespace(json=lambda: [
+                _workout_session(id="ready-new", status="ready", title="Wednesday Strength"),
+                _workout_session(id="completed-old", status="completed", title="Wednesday Strength"),
+            ])
+        if method == "GET" and path == "/rest/v1/workout_exercises":
+            session_id = params.get("session_id", "")
+            payload_session_ids.append(session_id)
+            name = "Goblet squat" if "completed-old" in session_id else "Should not load"
+            return SimpleNamespace(json=lambda: [{
+                "id": "exercise-a",
+                "name": name,
+                "prescribed_sets": 4,
+                "prescribed_reps": "8-10",
+                "rest_seconds": 90,
+                "coach_note": "",
+            }])
+        if method == "GET" and path == "/rest/v1/workout_set_logs":
+            return SimpleNamespace(json=lambda: [
+                {"workout_exercise_id": "exercise-a", "set_number": 1, "reps": 8, "load_kg": 21, "difficulty": "moderate"},
+            ])
+        raise AssertionError(f"unexpected request {method} {path} {params}")
+
+    service = _supabase_client_service_with_gateway(request)
+    workout = service.get_workout_for_date(date(2026, 9, 16))
+    assert workout["session_id"] == "completed-old"
+    assert workout["status"] == "completed"
+    assert workout["exercises"][0]["name"] == "Goblet squat"
+    assert payload_session_ids == ["eq.completed-old"]
+
+
 def test_client_api_contract_end_to_end():
     today = date.today().isoformat()
     with TestClient(app) as client:
