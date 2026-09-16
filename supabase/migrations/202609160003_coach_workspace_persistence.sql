@@ -11,10 +11,10 @@ create policy audit_events_insert_coach_workspace
   with check (
     actor_profile_id = (select auth.uid())
     and client_id is null
-    and action in (
-      'food_library_item_saved'::public.audit_action,
-      'exercise_library_item_saved'::public.audit_action,
-      'coach_settings_saved'::public.audit_action
+    and action::text in (
+      'food_library_item_saved',
+      'exercise_library_item_saved',
+      'coach_settings_saved'
     )
     and public.is_active_coach()
   );
