@@ -31,9 +31,8 @@ Implement the approved reusable multi-day workout program builder:
 ## Git state
 
 Branch: `codex/reusable-workout-program-builder`
-HEAD: `0c9573f` (`docs: record workout program rollout`)
 
-Reviewed Tasks 1–6 are complete:
+Reviewed Tasks 1–6 are complete on this branch:
 
 - Task 1: database contract and fixtures (`e7bd121`, `7dce73d`, `a11769c`).
 - Task 2: versioned persistence and immutability (`431aa0f`, `e942df1`).
@@ -41,6 +40,8 @@ Reviewed Tasks 1–6 are complete:
 - Task 4: retired session reads (`8ecc376`).
 - Task 5: builder UI and mocked Playwright (`45f3830`, `0317681`).
 - Task 6: prefer-completed client read + rollout doc (`dbbe85a`, `0c9573f`).
+
+Closeout commit: `19b7ab0` (`docs: close workout program builder handoff`).
 
 Live rollout evidence: `docs/live-rollout-2026-09-16-workout-program.md`. Do not touch unrelated file `docs/live-rollout-2026-09-15.md`.
 
