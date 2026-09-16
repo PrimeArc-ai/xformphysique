@@ -34,6 +34,14 @@ export const coachApi = {
   getPhotos: (clientId, token, offset = 0) => request(`/coach/clients/${clientId}/progress-photos?offset=${offset}`, token),
   deletePhoto: (clientId, photoId, token) => request(`/coach/clients/${clientId}/progress-photos/${photoId}`, token, { method: 'DELETE' }),
   getWorkoutHistory: (clientId, token) => request(`/coach/clients/${clientId}/workout-history`, token),
+  getWorkoutProgram: (clientId, token) => request(`/coach/clients/${clientId}/workout-program`, token),
+  saveWorkoutProgramDraft: (clientId, payload, token) => request(`/coach/clients/${clientId}/workout-program/draft`, token, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+  }),
+  publishWorkoutProgram: (clientId, publishKey, program, token) => request(`/coach/clients/${clientId}/workout-program/publish`, token, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ publish_key: publishKey, program }),
+  }),
   saveFeedback: (clientId, checkinId, payload, token) => request(`/coach/clients/${clientId}/check-ins/${checkinId}/feedback`, token, {
     method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
   }),

@@ -49,6 +49,7 @@ async function mockWorkspace(page, role, { empty = false, invalidLogin = false, 
     if (path.endsWith('/health-summary')) return json({ wellbeing: { energy_score: 4, sentiment: 'good' }, planning_context: { dietary_preferences: ['Vegetarian'], training_considerations: ['Steady training rhythm'], coach_note: 'Keep up your consistency.' }, safety_notice: 'Ask your health professional for clinical advice.' })
     if (path === '/api/v1/client/profile') { if (data) profile = { ...profile, ...data }; return json(profile) }
     if (path === '/api/v1/coach/clients') return json({ items: [clientRecord] })
+    if (path.endsWith('/workout-program')) return json({ active_program: null, draft: null, exercise_library: [] })
     if (path.endsWith('/review')) return json({ client: clientRecord, body_entries: body.map(item => ({ ...item, entry_date: item.date })), checkins, progress_photos: [], photo_count: 0, private_notes: [], coaching_context: { client_visible_coach_note: 'Stay consistent.', training_considerations: [], safety_notice: '' } })
     if (path.endsWith('/coaching-context')) return json(data)
     if (path === '/api/v1/admin/coaches') return json({ items: [coachRecord] })
