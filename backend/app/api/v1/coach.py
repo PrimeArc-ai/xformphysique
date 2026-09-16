@@ -14,9 +14,17 @@ from app.schemas.coach import (
     CoachClientListResponse,
     CoachClientReviewResponse,
 )
-from app.services.supabase_coach import SupabaseCoachService
 from app.schemas.profile_photo import ProfilePhotoResponse
+from app.schemas.workout_program import (
+    WorkoutProgramPublishRequest,
+    WorkoutProgramPublishResponse,
+    WorkoutProgramResponse,
+    WorkoutProgramSnapshot,
+    WorkoutProgramWorkspaceResponse,
+)
 from app.services.profile_photo import ProfilePhotoService
+from app.services.supabase_coach import SupabaseCoachService
+from app.services.workout_program import WorkoutProgramService
 
 
 router = APIRouter(prefix="/coach", tags=["Coach"])
@@ -24,7 +32,9 @@ ERROR_RESPONSES = {
     401: {"model": ErrorResponse},
     403: {"model": ErrorResponse},
     404: {"model": ErrorResponse},
+    409: {"model": ErrorResponse},
     422: {"model": ErrorResponse},
+    503: {"model": ErrorResponse},
 }
 
 
@@ -67,6 +77,51 @@ def list_clients(
     """List only clients actively assigned to the authenticated coach."""
 
     return SupabaseCoachService(settings=settings, user=user).list_clients()
+
+
+@router.get(
+    "/clients/{client_id}/workout-program",
+    response_model=WorkoutProgramWorkspaceResponse,
+    responses=ERROR_RESPONSES,
+)
+def get_workout_program(
+    client_id: str,
+    settings: Settings = Depends(get_settings),
+    user: AuthenticatedUser = Depends(get_authenticated_user),
+):
+    return WorkoutProgramService(settings, user).get_workspace(client_id)
+
+
+@router.put(
+    "/clients/{client_id}/workout-program/draft",
+    response_model=WorkoutProgramResponse,
+    responses=ERROR_RESPONSES,
+)
+def save_workout_program_draft(
+    client_id: str,
+    payload: WorkoutProgramSnapshot,
+    settings: Settings = Depends(get_settings),
+    user: AuthenticatedUser = Depends(get_authenticated_user),
+):
+    return WorkoutProgramService(settings, user).save_draft(client_id, payload)
+
+
+@router.post(
+    "/clients/{client_id}/workout-program/publish",
+    response_model=WorkoutProgramPublishResponse,
+    responses=ERROR_RESPONSES,
+)
+def publish_workout_program(
+    client_id: str,
+    payload: WorkoutProgramPublishRequest,
+    settings: Settings = Depends(get_settings),
+    user: AuthenticatedUser = Depends(get_authenticated_user),
+):
+    return WorkoutProgramService(settings, user).publish(
+        client_id,
+        payload.publish_key,
+        payload.program,
+    )
 
 
 @router.get("/clients/{client_id}/review", response_model=CoachClientReviewResponse, responses=ERROR_RESPONSES)
