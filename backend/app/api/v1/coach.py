@@ -14,6 +14,13 @@ from app.schemas.coach import (
     CoachClientListResponse,
     CoachClientReviewResponse,
 )
+from app.schemas.nutrition_plan import (
+    NutritionPlanDraftResponse,
+    NutritionPlanPublishRequest,
+    NutritionPlanPublishResponse,
+    NutritionPlanSnapshot,
+    NutritionPlanWorkspaceResponse,
+)
 from app.schemas.profile_photo import ProfilePhotoResponse
 from app.schemas.workout_program import (
     WorkoutProgramPublishRequest,
@@ -22,6 +29,7 @@ from app.schemas.workout_program import (
     WorkoutProgramSnapshot,
     WorkoutProgramWorkspaceResponse,
 )
+from app.services.nutrition_plan import NutritionPlanService
 from app.services.profile_photo import ProfilePhotoService
 from app.services.supabase_coach import SupabaseCoachService
 from app.services.workout_program import WorkoutProgramService
@@ -121,6 +129,51 @@ def publish_workout_program(
         client_id,
         payload.publish_key,
         payload.program,
+    )
+
+
+@router.get(
+    "/clients/{client_id}/nutrition-plan",
+    response_model=NutritionPlanWorkspaceResponse,
+    responses=ERROR_RESPONSES,
+)
+def get_nutrition_plan(
+    client_id: str,
+    settings: Settings = Depends(get_settings),
+    user: AuthenticatedUser = Depends(get_authenticated_user),
+):
+    return NutritionPlanService(settings, user).get_workspace(client_id)
+
+
+@router.put(
+    "/clients/{client_id}/nutrition-plan/draft",
+    response_model=NutritionPlanDraftResponse,
+    responses=ERROR_RESPONSES,
+)
+def save_nutrition_plan_draft(
+    client_id: str,
+    payload: NutritionPlanSnapshot,
+    settings: Settings = Depends(get_settings),
+    user: AuthenticatedUser = Depends(get_authenticated_user),
+):
+    return NutritionPlanService(settings, user).save_draft(client_id, payload)
+
+
+@router.post(
+    "/clients/{client_id}/nutrition-plan/publish",
+    response_model=NutritionPlanPublishResponse,
+    responses=ERROR_RESPONSES,
+)
+def publish_nutrition_plan(
+    client_id: str,
+    payload: NutritionPlanPublishRequest,
+    settings: Settings = Depends(get_settings),
+    user: AuthenticatedUser = Depends(get_authenticated_user),
+):
+    return NutritionPlanService(settings, user).publish(
+        client_id,
+        payload.publish_key,
+        payload.plan,
     )
 
 
