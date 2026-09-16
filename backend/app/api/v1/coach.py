@@ -15,7 +15,14 @@ from app.schemas.coach import (
     ClientSetupResponse,
     CoachClientListResponse,
     CoachClientReviewResponse,
+    CoachLibrariesResponse,
     CoachPrivateNote,
+    ExerciseLibraryCreate,
+    ExerciseLibraryItem,
+    ExerciseLibraryUpdate,
+    FoodLibraryCreate,
+    FoodLibraryItem,
+    FoodLibraryUpdate,
     PrivateNoteCreate,
 )
 from app.schemas.nutrition_plan import (
@@ -223,6 +230,80 @@ def update_client_setup(
     """Persist client setup owned by the assigned coach."""
 
     return SupabaseCoachService(settings=settings, user=user).save_setup(client_id, payload)
+
+
+@router.get("/libraries", response_model=CoachLibrariesResponse, responses=ERROR_RESPONSES)
+def list_libraries(
+    settings: Settings = Depends(get_settings),
+    user: AuthenticatedUser = Depends(get_authenticated_user),
+):
+    """Return the authenticated coach's food and exercise libraries, including inactive items."""
+
+    return SupabaseCoachService(settings=settings, user=user).list_libraries()
+
+
+@router.post(
+    "/libraries/food",
+    response_model=FoodLibraryItem,
+    status_code=status.HTTP_201_CREATED,
+    responses=ERROR_RESPONSES,
+)
+def create_food_library_item(
+    payload: FoodLibraryCreate,
+    settings: Settings = Depends(get_settings),
+    user: AuthenticatedUser = Depends(get_authenticated_user),
+):
+    """Create a food library item owned by the authenticated coach."""
+
+    return SupabaseCoachService(settings=settings, user=user).create_food_item(payload)
+
+
+@router.patch(
+    "/libraries/food/{item_id}",
+    response_model=FoodLibraryItem,
+    responses=ERROR_RESPONSES,
+)
+def update_food_library_item(
+    item_id: str,
+    payload: FoodLibraryUpdate,
+    settings: Settings = Depends(get_settings),
+    user: AuthenticatedUser = Depends(get_authenticated_user),
+):
+    """Edit or disable a food library item owned by the authenticated coach."""
+
+    return SupabaseCoachService(settings=settings, user=user).update_food_item(item_id, payload)
+
+
+@router.post(
+    "/libraries/exercises",
+    response_model=ExerciseLibraryItem,
+    status_code=status.HTTP_201_CREATED,
+    responses=ERROR_RESPONSES,
+)
+def create_exercise_library_item(
+    payload: ExerciseLibraryCreate,
+    settings: Settings = Depends(get_settings),
+    user: AuthenticatedUser = Depends(get_authenticated_user),
+):
+    """Create an exercise library item owned by the authenticated coach."""
+
+    return SupabaseCoachService(settings=settings, user=user).create_exercise_item(payload)
+
+
+@router.patch(
+    "/libraries/exercises/{item_id}",
+    response_model=ExerciseLibraryItem,
+    responses=ERROR_RESPONSES,
+)
+def update_exercise_library_item(
+    item_id: str,
+    payload: ExerciseLibraryUpdate,
+    settings: Settings = Depends(get_settings),
+    user: AuthenticatedUser = Depends(get_authenticated_user),
+):
+    """Edit or disable an exercise library item owned by the authenticated coach."""
+
+    return SupabaseCoachService(settings=settings, user=user).update_exercise_item(item_id, payload)
 
 
 @router.get(

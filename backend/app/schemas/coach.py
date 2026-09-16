@@ -178,3 +178,74 @@ class CoachClientReviewResponse(BaseModel):
     coaching_context: ClientCoachingContextResponse
     private_notes: list[CoachPrivateNote]
     setup: ClientSetupResponse
+
+
+class FoodLibraryCreate(CoachAPIModel):
+    name: Annotated[str, Field(min_length=1, max_length=180)]
+    category: Annotated[str, Field(min_length=1, max_length=80)]
+    calories_kcal: Annotated[float | None, Field(ge=0)] = None
+    protein_g: Annotated[float | None, Field(ge=0)] = None
+    carbs_g: Annotated[float | None, Field(ge=0)] = None
+    fat_g: Annotated[float | None, Field(ge=0)] = None
+
+
+class FoodLibraryUpdate(CoachAPIModel):
+    name: Annotated[str | None, Field(min_length=1, max_length=180)] = None
+    category: Annotated[str | None, Field(min_length=1, max_length=80)] = None
+    calories_kcal: Annotated[float | None, Field(ge=0)] = None
+    protein_g: Annotated[float | None, Field(ge=0)] = None
+    carbs_g: Annotated[float | None, Field(ge=0)] = None
+    fat_g: Annotated[float | None, Field(ge=0)] = None
+    is_active: bool | None = None
+
+    @model_validator(mode="after")
+    def require_non_null_change(self) -> "FoodLibraryUpdate":
+        if not self.model_fields_set:
+            raise ValueError("provide at least one food library field")
+        return self
+
+
+class FoodLibraryItem(BaseModel):
+    id: str
+    name: str
+    category: str
+    calories_kcal: float | None = None
+    protein_g: float | None = None
+    carbs_g: float | None = None
+    fat_g: float | None = None
+    is_active: bool
+
+
+class ExerciseLibraryCreate(CoachAPIModel):
+    name: Annotated[str, Field(min_length=1, max_length=180)]
+    body_region: Annotated[str, Field(min_length=1, max_length=80)]
+    training_focus: Annotated[str, Field(min_length=1, max_length=80)]
+    guidance: Annotated[str, Field(max_length=3000)] = ""
+
+
+class ExerciseLibraryUpdate(CoachAPIModel):
+    name: Annotated[str | None, Field(min_length=1, max_length=180)] = None
+    body_region: Annotated[str | None, Field(min_length=1, max_length=80)] = None
+    training_focus: Annotated[str | None, Field(min_length=1, max_length=80)] = None
+    guidance: Annotated[str | None, Field(max_length=3000)] = None
+    is_active: bool | None = None
+
+    @model_validator(mode="after")
+    def require_non_null_change(self) -> "ExerciseLibraryUpdate":
+        if not self.model_fields_set:
+            raise ValueError("provide at least one exercise library field")
+        return self
+
+
+class ExerciseLibraryItem(BaseModel):
+    id: str
+    name: str
+    body_region: str
+    training_focus: str
+    guidance: str = ""
+    is_active: bool
+
+
+class CoachLibrariesResponse(BaseModel):
+    food: list[FoodLibraryItem]
+    exercises: list[ExerciseLibraryItem]

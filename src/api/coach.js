@@ -65,6 +65,27 @@ export const coachApi = {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   }),
+  getLibraries: (accessToken) => request('/coach/libraries', accessToken),
+  createFoodLibraryItem: (payload, accessToken) => request('/coach/libraries/food', accessToken, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }),
+  updateFoodLibraryItem: (itemId, payload, accessToken) => request(`/coach/libraries/food/${itemId}`, accessToken, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }),
+  createExerciseLibraryItem: (payload, accessToken) => request('/coach/libraries/exercises', accessToken, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }),
+  updateExerciseLibraryItem: (itemId, payload, accessToken) => request(`/coach/libraries/exercises/${itemId}`, accessToken, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }),
   getPrivatePhotoUrl: (contentPath, accessToken) => privateObjectUrl(contentPath, accessToken),
   updateClientCoachingContext: (clientId, payload, accessToken) => request(`/coach/clients/${clientId}/coaching-context`, accessToken, {
     method: 'PATCH',

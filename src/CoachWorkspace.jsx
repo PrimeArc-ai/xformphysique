@@ -25,19 +25,6 @@ const initialClients = [
   { id: 'XP-0034', name: 'Kabir Iyer', initials: 'KI', weight: '74.8 kg', lastEntry: 'Yesterday', checkIn: 'Submitted', status: 'On track', goal: 'Performance', checkInDay: 'Wednesday', attention: false },
 ]
 
-const foodItems = [
-  ['Chicken breast', 'Protein', '31g P · 165 kcal'],
-  ['Greek yoghurt', 'Dairy', '10g P · 73 kcal'],
-  ['Basmati rice', 'Carbohydrate', '28g C · 130 kcal'],
-  ['Avocado', 'Fats', '15g F · 160 kcal'],
-]
-const exerciseItems = [
-  ['Goblet squat', 'Lower body', 'Strength'],
-  ['Romanian deadlift', 'Lower body', 'Strength'],
-  ['Incline dumbbell press', 'Upper body', 'Strength'],
-  ['Cable row', 'Upper body', 'Strength'],
-]
-
 function formatDate(value) {
   if (!value) return '—'
   return new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(`${String(value).slice(0, 10)}T00:00:00`))
@@ -198,12 +185,221 @@ function CoachWorkout({ clientId, clients, setClientId, accessToken }) {
   return <section className="coach-page"><CoachHeading eyebrow="COACH / WORKOUT PLANS" title="Workout" copy="Build days, select exercises and publish training programs." action={<ClientSelect clientId={clientId} clients={clients} onChange={setClientId} />} /><WorkoutProgramBuilder client={client} accessToken={accessToken} /></section>
 }
 
-function CoachLibraries({ notice }) {
+function foodDetail(item) {
+  const parts = []
+  if (item.protein_g != null) parts.push(`${item.protein_g}g P`)
+  if (item.carbs_g != null) parts.push(`${item.carbs_g}g C`)
+  if (item.fat_g != null) parts.push(`${item.fat_g}g F`)
+  if (item.calories_kcal != null) parts.push(`${item.calories_kcal} kcal`)
+  return parts.join(' · ') || 'No macros recorded'
+}
+
+function optionalNumber(value) {
+  if (value === '' || value == null) return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function emptyFoodDraft(item) {
+  return {
+    name: item?.name || '',
+    category: item?.category || '',
+    calories_kcal: item?.calories_kcal ?? '',
+    protein_g: item?.protein_g ?? '',
+    carbs_g: item?.carbs_g ?? '',
+    fat_g: item?.fat_g ?? '',
+  }
+}
+
+function emptyExerciseDraft(item) {
+  return {
+    name: item?.name || '',
+    body_region: item?.body_region || '',
+    training_focus: item?.training_focus || '',
+    guidance: item?.guidance || '',
+  }
+}
+
+function CoachLibraries({ notice, accessToken }) {
   const [library, setLibrary] = useState('Food Library')
   const [query, setQuery] = useState('')
-  const items = library === 'Food Library' ? foodItems : exerciseItems
-  const filtered = items.filter((item) => item.join(' ').toLowerCase().includes(query.toLowerCase()))
-  return <section className="coach-page"><CoachHeading eyebrow="COACH / SOURCE LIBRARIES" title="Libraries" copy="Source-of-truth food and exercise references for plans." action={<button className="coach-primary" onClick={() => notice('Library editing connects to backend storage later.')}><CoachGlyph name="plus" />Add item</button>} /><div className="coach-library-tools"><div className="coach-tab-switch">{['Food Library', 'Exercise Library'].map((item) => <button className={library === item ? 'selected' : ''} onClick={() => setLibrary(item)} key={item}>{item}</button>)}</div><label className="coach-search"><CoachGlyph name="search" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={library === 'Food Library' ? 'Search foods' : 'Search exercises'} /></label></div><section className="coach-library-list">{filtered.map(([name, group, detail]) => <article key={name}><span className="library-icon"><CoachGlyph name={library === 'Food Library' ? 'food' : 'exercise'} /></span><div><strong>{name}</strong><small>{group} · {detail}</small></div><Status tone="good">ACTIVE</Status><button onClick={() => notice(`${name} edit form is preview-only.`)}>Edit</button><button onClick={() => notice(`${name} disable action needs backend.`)}>Disable</button></article>)}</section>{!filtered.length && <div className="coach-empty"><CoachGlyph name="search" /><strong>No matching {library.toLowerCase()}</strong></div>}</section>
+  const [food, setFood] = useState([])
+  const [exercises, setExercises] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [formError, setFormError] = useState('')
+  const [editor, setEditor] = useState(null)
+  const isFood = library === 'Food Library'
+  const items = isFood ? food : exercises
+  const filtered = items.filter((item) => {
+    const haystack = isFood
+      ? `${item.name} ${item.category} ${foodDetail(item)}`
+      : `${item.name} ${item.body_region} ${item.training_focus} ${item.guidance || ''}`
+    return haystack.toLowerCase().includes(query.toLowerCase())
+  })
+
+  const load = useCallback(async ({ silent } = {}) => {
+    if (!silent) setLoading(true)
+    try {
+      const result = await coachApi.getLibraries(accessToken)
+      setFood(result.food || [])
+      setExercises(result.exercises || [])
+    } catch (reason) {
+      notice(reason.message || 'Could not load libraries.')
+    } finally {
+      if (!silent) setLoading(false)
+    }
+  }, [accessToken, notice])
+
+  useEffect(() => { load() }, [load])
+
+  const openCreate = () => {
+    setFormError('')
+    setEditor({ mode: 'create', kind: isFood ? 'food' : 'exercise', draft: isFood ? emptyFoodDraft() : emptyExerciseDraft() })
+  }
+
+  const openEdit = (item) => {
+    setFormError('')
+    setEditor({
+      mode: 'edit',
+      kind: isFood ? 'food' : 'exercise',
+      id: item.id,
+      draft: isFood ? emptyFoodDraft(item) : emptyExerciseDraft(item),
+    })
+  }
+
+  const setDraftField = (field, value) => {
+    setEditor((current) => current ? { ...current, draft: { ...current.draft, [field]: value } } : current)
+  }
+
+  const saveEditor = async (event) => {
+    event.preventDefault()
+    if (!editor) return
+    setSaving(true)
+    setFormError('')
+    try {
+      if (editor.kind === 'food') {
+        const payload = {
+          name: editor.draft.name,
+          category: editor.draft.category,
+          calories_kcal: optionalNumber(editor.draft.calories_kcal),
+          protein_g: optionalNumber(editor.draft.protein_g),
+          carbs_g: optionalNumber(editor.draft.carbs_g),
+          fat_g: optionalNumber(editor.draft.fat_g),
+        }
+        if (editor.mode === 'create') await coachApi.createFoodLibraryItem(payload, accessToken)
+        else await coachApi.updateFoodLibraryItem(editor.id, payload, accessToken)
+      } else {
+        const payload = {
+          name: editor.draft.name,
+          body_region: editor.draft.body_region,
+          training_focus: editor.draft.training_focus,
+          guidance: editor.draft.guidance,
+        }
+        if (editor.mode === 'create') await coachApi.createExerciseLibraryItem(payload, accessToken)
+        else await coachApi.updateExerciseLibraryItem(editor.id, payload, accessToken)
+      }
+      setEditor(null)
+      notice(editor.mode === 'create' ? 'Library item saved.' : 'Library item updated.')
+      await load({ silent: true })
+    } catch (reason) {
+      setFormError(reason.message || 'Could not save this library item.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const disableItem = async (item) => {
+    try {
+      if (isFood) await coachApi.updateFoodLibraryItem(item.id, { is_active: false }, accessToken)
+      else await coachApi.updateExerciseLibraryItem(item.id, { is_active: false }, accessToken)
+      notice(`${item.name} disabled.`)
+      await load({ silent: true })
+    } catch (reason) {
+      notice(reason.message || 'Could not disable this library item.')
+    }
+  }
+
+  return (
+    <section className="coach-page">
+      <CoachHeading
+        eyebrow="COACH / SOURCE LIBRARIES"
+        title="Libraries"
+        copy="Source-of-truth food and exercise references for plans."
+        action={<button className="coach-primary" type="button" onClick={openCreate}><CoachGlyph name="plus" />Add item</button>}
+      />
+      <div className="coach-library-tools">
+        <div className="coach-tab-switch">
+          {['Food Library', 'Exercise Library'].map((item) => (
+            <button className={library === item ? 'selected' : ''} onClick={() => setLibrary(item)} key={item} type="button">{item}</button>
+          ))}
+        </div>
+        <label className="coach-search">
+          <CoachGlyph name="search" />
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={isFood ? 'Search foods' : 'Search exercises'} />
+        </label>
+      </div>
+      {loading ? (
+        <div className="coach-empty"><CoachGlyph name="search" /><strong>Loading libraries…</strong></div>
+      ) : (
+        <>
+          <section className="coach-library-list">
+            {filtered.map((item) => (
+              <article key={item.id}>
+                <span className="library-icon"><CoachGlyph name={isFood ? 'food' : 'exercise'} /></span>
+                <div>
+                  <strong>{item.name}</strong>
+                  <small>{isFood ? `${item.category} · ${foodDetail(item)}` : `${item.body_region} · ${item.training_focus}`}</small>
+                </div>
+                <Status tone={item.is_active ? 'good' : 'warning'}>{item.is_active ? 'ACTIVE' : 'INACTIVE'}</Status>
+                <button type="button" onClick={() => openEdit(item)}>Edit</button>
+                <button type="button" onClick={() => disableItem(item)} disabled={!item.is_active}>Disable</button>
+              </article>
+            ))}
+          </section>
+          {!filtered.length && (
+            <div className="coach-empty">
+              <CoachGlyph name="search" />
+              <strong>{items.length ? `No matching ${library.toLowerCase()}` : `No ${isFood ? 'food' : 'exercise'} items yet.`}</strong>
+              <span>{items.length ? 'Change search or library tab.' : 'Add an item to use it in plan builders.'}</span>
+            </div>
+          )}
+        </>
+      )}
+      {editor && (
+        <div className="modal-backdrop">
+          <form className="signal-modal coach-modal" onSubmit={saveEditor}>
+            <button className="modal-close" type="button" onClick={() => setEditor(null)} disabled={saving} aria-label="Close library editor"><CoachGlyph name="close" /></button>
+            <p className="kicker">COACH / LIBRARIES</p>
+            <h2>{editor.mode === 'create' ? 'Add' : 'Edit'} {editor.kind === 'food' ? 'food' : 'exercise'}</h2>
+            <p>Saved items stay available to this coach. Disable keeps history instead of deleting.</p>
+            <div className="coach-form-grid">
+              <label>Name<input value={editor.draft.name} onChange={(event) => setDraftField('name', event.target.value)} required maxLength="180" /></label>
+              {editor.kind === 'food' ? (
+                <>
+                  <label>Category<input value={editor.draft.category} onChange={(event) => setDraftField('category', event.target.value)} required maxLength="80" /></label>
+                  <label>Calories (kcal)<input type="number" min="0" step="0.1" value={editor.draft.calories_kcal} onChange={(event) => setDraftField('calories_kcal', event.target.value)} /></label>
+                  <label>Protein (g)<input type="number" min="0" step="0.1" value={editor.draft.protein_g} onChange={(event) => setDraftField('protein_g', event.target.value)} /></label>
+                  <label>Carbs (g)<input type="number" min="0" step="0.1" value={editor.draft.carbs_g} onChange={(event) => setDraftField('carbs_g', event.target.value)} /></label>
+                  <label>Fat (g)<input type="number" min="0" step="0.1" value={editor.draft.fat_g} onChange={(event) => setDraftField('fat_g', event.target.value)} /></label>
+                </>
+              ) : (
+                <>
+                  <label>Body region<input value={editor.draft.body_region} onChange={(event) => setDraftField('body_region', event.target.value)} required maxLength="80" /></label>
+                  <label>Training focus<input value={editor.draft.training_focus} onChange={(event) => setDraftField('training_focus', event.target.value)} required maxLength="80" /></label>
+                  <label className="wide-field">Guidance<textarea rows="3" maxLength="3000" value={editor.draft.guidance} onChange={(event) => setDraftField('guidance', event.target.value)} /></label>
+                </>
+              )}
+            </div>
+            <footer className="coach-modal-footer">
+              <span role="status">{formError || 'Optional macros stay blank when unknown. Duplicate names are rejected.'}</span>
+              <button className="coach-primary" type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save item'}</button>
+            </footer>
+          </form>
+        </div>
+      )}
+    </section>
+  )
 }
 
 function CoachProfilePhoto({ account, profilePhoto, onUploadProfilePhoto }) {
@@ -481,7 +677,7 @@ export default function CoachWorkspace({ account, accessToken, onSignOut }) {
         : active === 'Body Tracker' ? <PersistedCoachReview key={selectedClient.id} client={selectedClient} accessToken={accessToken} navigate={choose} onNotice={setNotice} bodyOnly />
           : active === 'Nutrition' ? <CoachNutrition clientId={selectedClientId} clients={clients} setClientId={setSelectedClientId} accessToken={accessToken} />
             : active === 'Workout' ? <CoachWorkout clientId={selectedClientId} clients={clients} setClientId={setSelectedClientId} accessToken={accessToken} />
-              : active === 'Libraries' ? <CoachLibraries notice={setNotice} />
+              : active === 'Libraries' ? <CoachLibraries notice={setNotice} accessToken={accessToken} />
                 : active === 'Settings' ? <CoachSettings notice={setNotice} account={account} profilePhoto={profilePhoto} onUploadProfilePhoto={uploadProfilePhoto} />
                   : active === 'Health' ? <CoachHealth />
                     : <CoachAudit />

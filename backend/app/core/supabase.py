@@ -71,11 +71,13 @@ class SupabaseGateway:
         status = response.status_code
         if detail.get("code") == "P0002":
             raise APIError(404, "resource_not_found", "Requested record not found")
+        if detail.get("code") == "23505" or status == 409:
+            raise APIError(409, "supabase_validation_failed", message)
         if status in {401, 403}:
             raise APIError(status, "authorization_failed", message)
         if status == 404:
             raise APIError(404, "resource_not_found", message)
-        if status in {400, 409, 422}:
+        if status in {400, 422}:
             raise APIError(status, "supabase_validation_failed", message)
         raise APIError(503, "supabase_request_failed", message)
 

@@ -5,8 +5,16 @@ from datetime import date
 import pytest
 
 from app.core.config import Settings
+from app.core.errors import APIError
 from app.core.supabase import AuthenticatedUser
-from app.schemas.coach import ClientSetup, PrivateNoteCreate
+from app.schemas.coach import (
+    ClientSetup,
+    ExerciseLibraryCreate,
+    ExerciseLibraryUpdate,
+    FoodLibraryCreate,
+    FoodLibraryUpdate,
+    PrivateNoteCreate,
+)
 from app.services.supabase_coach import SupabaseCoachService
 
 
@@ -433,3 +441,304 @@ def test_save_setup_clears_null_targets_by_deactivating_active_rows(monkeypatch:
     assert setup["target_weight_kg"] is None
     assert setup["target_waist_cm"] == 88.0
     assert targets["weight_kg"]["is_active"] is False
+
+
+def test_create_food_library_item_posts_owner_coach_id(monkeypatch: pytest.MonkeyPatch) -> None:
+    seen: list[tuple[str, str, object]] = []
+    service = coach_service()
+
+    def request(method: str, path: str, **kwargs):
+        seen.append((method, path, kwargs.get("json")))
+        params = kwargs.get("params") or {}
+        identity = _coach_identity(path, params)
+        if identity is not None:
+            return identity
+        if path.endswith("/rest/v1/food_library_items") and method == "POST":
+            payload = kwargs.get("json") or {}
+            return FakeResponse(
+                201,
+                [
+                    {
+                        "id": "food-1",
+                        "owner_coach_id": payload.get("owner_coach_id"),
+                        "name": payload.get("name"),
+                        "category": payload.get("category"),
+                        "calories_kcal": payload.get("calories_kcal"),
+                        "protein_g": payload.get("protein_g"),
+                        "carbs_g": payload.get("carbs_g"),
+                        "fat_g": payload.get("fat_g"),
+                        "is_active": True,
+                    }
+                ],
+            )
+        if path.endswith("/rest/v1/audit_events") and method == "POST":
+            return FakeResponse(201, [{"id": "audit-food"}])
+        raise AssertionError(f"Unexpected request: {method} {path}")
+
+    monkeypatch.setattr(service.gateway, "request", request)
+    item = service.create_food_item(
+        FoodLibraryCreate(name="Greek yoghurt", category="Dairy", calories_kcal=73, protein_g=10)
+    )
+
+    food_payload = next(
+        json for method, path, json in seen if method == "POST" and path.endswith("/rest/v1/food_library_items")
+    )
+    assert food_payload["owner_coach_id"] == "coach-id"
+    assert food_payload["name"] == "Greek yoghurt"
+    assert food_payload["category"] == "Dairy"
+    assert item["name"] == "Greek yoghurt"
+    assert item["is_active"] is True
+    audit = next(json for _, path, json in seen if path.endswith("/rest/v1/audit_events"))
+    assert audit["action"] == "food_library_item_saved"
+    assert audit["metadata"] == {"id": "food-1", "name": "Greek yoghurt", "is_active": True}
+
+
+def test_create_food_library_item_duplicate_name_maps_409(monkeypatch: pytest.MonkeyPatch) -> None:
+    service = coach_service()
+
+    def request(method: str, path: str, **kwargs):
+        params = kwargs.get("params") or {}
+        identity = _coach_identity(path, params)
+        if identity is not None:
+            return identity
+        if path.endswith("/rest/v1/food_library_items") and method == "POST":
+            raise APIError(409, "23505", "duplicate key value violates unique constraint")
+        raise AssertionError(f"Unexpected request: {method} {path}")
+
+    monkeypatch.setattr(service.gateway, "request", request)
+    with pytest.raises(APIError) as exc:
+        service.create_food_item(FoodLibraryCreate(name="Greek yoghurt", category="Dairy"))
+    assert exc.value.status_code == 409
+
+
+def test_list_libraries_includes_inactive_ordered_by_name(monkeypatch: pytest.MonkeyPatch) -> None:
+    service = coach_service()
+    seen_params: list[tuple[str, dict]] = []
+
+    def request(method: str, path: str, **kwargs):
+        params = kwargs.get("params") or {}
+        seen_params.append((path, params))
+        identity = _coach_identity(path, params)
+        if identity is not None:
+            return identity
+        if path.endswith("/rest/v1/food_library_items"):
+            return FakeResponse(
+                200,
+                [
+                    {
+                        "id": "food-z",
+                        "name": "Zucchini",
+                        "category": "Vegetable",
+                        "calories_kcal": "17",
+                        "protein_g": "1.2",
+                        "carbs_g": "3.1",
+                        "fat_g": "0.3",
+                        "is_active": False,
+                    },
+                    {
+                        "id": "food-a",
+                        "name": "Avocado",
+                        "category": "Fats",
+                        "calories_kcal": "160",
+                        "protein_g": "2",
+                        "carbs_g": "9",
+                        "fat_g": "15",
+                        "is_active": True,
+                    },
+                ],
+            )
+        if path.endswith("/rest/v1/exercise_library_items"):
+            return FakeResponse(
+                200,
+                [
+                    {
+                        "id": "ex-b",
+                        "name": "Row",
+                        "body_region": "Upper body",
+                        "training_focus": "Strength",
+                        "guidance": "Neutral spine",
+                        "is_active": False,
+                    },
+                    {
+                        "id": "ex-a",
+                        "name": "Goblet squat",
+                        "body_region": "Lower body",
+                        "training_focus": "Strength",
+                        "guidance": "Controlled tempo",
+                        "is_active": True,
+                    },
+                ],
+            )
+        raise AssertionError(f"Unexpected request: {method} {path}")
+
+    monkeypatch.setattr(service.gateway, "request", request)
+    result = service.list_libraries()
+
+    assert [item["name"] for item in result["food"]] == ["Avocado", "Zucchini"]
+    assert result["food"][1]["is_active"] is False
+    assert [item["name"] for item in result["exercises"]] == ["Goblet squat", "Row"]
+    assert result["exercises"][1]["is_active"] is False
+    food_params = next(params for path, params in seen_params if path.endswith("/rest/v1/food_library_items"))
+    exercise_params = next(
+        params for path, params in seen_params if path.endswith("/rest/v1/exercise_library_items")
+    )
+    assert "is_active" not in food_params
+    assert "is_active" not in exercise_params
+    assert food_params.get("order", "").startswith("name.")
+    assert exercise_params.get("order", "").startswith("name.")
+
+
+def test_list_libraries_empty_is_valid(monkeypatch: pytest.MonkeyPatch) -> None:
+    service = coach_service()
+
+    def request(method: str, path: str, **kwargs):
+        params = kwargs.get("params") or {}
+        identity = _coach_identity(path, params)
+        if identity is not None:
+            return identity
+        if path.endswith("/rest/v1/food_library_items") or path.endswith("/rest/v1/exercise_library_items"):
+            return FakeResponse(200, [])
+        raise AssertionError(f"Unexpected request: {method} {path}")
+
+    monkeypatch.setattr(service.gateway, "request", request)
+    assert service.list_libraries() == {"food": [], "exercises": []}
+
+
+def test_patch_food_item_disable_sets_is_active_false(monkeypatch: pytest.MonkeyPatch) -> None:
+    seen: list[tuple[str, str, object]] = []
+    service = coach_service()
+    row = {
+        "id": "food-1",
+        "name": "Greek yoghurt",
+        "category": "Dairy",
+        "calories_kcal": 73,
+        "protein_g": 10,
+        "carbs_g": 4,
+        "fat_g": 2,
+        "is_active": True,
+    }
+
+    def request(method: str, path: str, **kwargs):
+        seen.append((method, path, kwargs.get("json")))
+        params = kwargs.get("params") or {}
+        identity = _coach_identity(path, params)
+        if identity is not None:
+            return identity
+        if path.endswith("/rest/v1/food_library_items") and method == "GET":
+            return FakeResponse(200, [row])
+        if path.endswith("/rest/v1/food_library_items") and method == "PATCH":
+            row.update(kwargs.get("json") or {})
+            return FakeResponse(200, [row])
+        if path.endswith("/rest/v1/audit_events") and method == "POST":
+            return FakeResponse(201, [{"id": "audit-food-disable"}])
+        raise AssertionError(f"Unexpected request: {method} {path}")
+
+    monkeypatch.setattr(service.gateway, "request", request)
+    item = service.update_food_item("food-1", FoodLibraryUpdate(is_active=False))
+
+    patch = next(json for method, path, json in seen if method == "PATCH" and path.endswith("/rest/v1/food_library_items"))
+    assert patch == {"is_active": False}
+    assert item["is_active"] is False
+    audit = next(json for _, path, json in seen if path.endswith("/rest/v1/audit_events"))
+    assert audit["action"] == "food_library_item_saved"
+    assert audit["metadata"]["is_active"] is False
+
+
+def test_patch_foreign_food_library_id_is_forbidden(monkeypatch: pytest.MonkeyPatch) -> None:
+    service = coach_service()
+
+    def request(method: str, path: str, **kwargs):
+        params = kwargs.get("params") or {}
+        identity = _coach_identity(path, params)
+        if identity is not None:
+            return identity
+        if path.endswith("/rest/v1/food_library_items"):
+            return FakeResponse(200, [])
+        raise AssertionError(f"Unexpected request: {method} {path}")
+
+    monkeypatch.setattr(service.gateway, "request", request)
+    with pytest.raises(APIError) as exc:
+        service.update_food_item("foreign-id", FoodLibraryUpdate(is_active=False))
+    assert exc.value.status_code == 403
+
+
+def test_create_exercise_library_item_posts_owner_coach_id(monkeypatch: pytest.MonkeyPatch) -> None:
+    seen: list[tuple[str, str, object]] = []
+    service = coach_service()
+
+    def request(method: str, path: str, **kwargs):
+        seen.append((method, path, kwargs.get("json")))
+        params = kwargs.get("params") or {}
+        identity = _coach_identity(path, params)
+        if identity is not None:
+            return identity
+        if path.endswith("/rest/v1/exercise_library_items") and method == "POST":
+            payload = kwargs.get("json") or {}
+            return FakeResponse(
+                201,
+                [
+                    {
+                        "id": "ex-1",
+                        "owner_coach_id": payload.get("owner_coach_id"),
+                        "name": payload.get("name"),
+                        "body_region": payload.get("body_region"),
+                        "training_focus": payload.get("training_focus"),
+                        "guidance": payload.get("guidance") or "",
+                        "is_active": True,
+                    }
+                ],
+            )
+        if path.endswith("/rest/v1/audit_events") and method == "POST":
+            return FakeResponse(201, [{"id": "audit-ex"}])
+        raise AssertionError(f"Unexpected request: {method} {path}")
+
+    monkeypatch.setattr(service.gateway, "request", request)
+    item = service.create_exercise_item(
+        ExerciseLibraryCreate(name="Goblet squat", body_region="Lower body", training_focus="Strength")
+    )
+
+    payload = next(
+        json for method, path, json in seen if method == "POST" and path.endswith("/rest/v1/exercise_library_items")
+    )
+    assert payload["owner_coach_id"] == "coach-id"
+    assert payload["name"] == "Goblet squat"
+    assert item["name"] == "Goblet squat"
+    audit = next(json for _, path, json in seen if path.endswith("/rest/v1/audit_events"))
+    assert audit["action"] == "exercise_library_item_saved"
+    assert audit["metadata"] == {"id": "ex-1", "name": "Goblet squat", "is_active": True}
+
+
+def test_patch_exercise_item_updates_guidance(monkeypatch: pytest.MonkeyPatch) -> None:
+    seen: list[tuple[str, str, object]] = []
+    service = coach_service()
+    row = {
+        "id": "ex-1",
+        "name": "Goblet squat",
+        "body_region": "Lower body",
+        "training_focus": "Strength",
+        "guidance": "Controlled tempo",
+        "is_active": True,
+    }
+
+    def request(method: str, path: str, **kwargs):
+        seen.append((method, path, kwargs.get("json")))
+        params = kwargs.get("params") or {}
+        identity = _coach_identity(path, params)
+        if identity is not None:
+            return identity
+        if path.endswith("/rest/v1/exercise_library_items") and method == "GET":
+            return FakeResponse(200, [row])
+        if path.endswith("/rest/v1/exercise_library_items") and method == "PATCH":
+            row.update(kwargs.get("json") or {})
+            return FakeResponse(200, [row])
+        if path.endswith("/rest/v1/audit_events") and method == "POST":
+            return FakeResponse(201, [{"id": "audit-ex-patch"}])
+        raise AssertionError(f"Unexpected request: {method} {path}")
+
+    monkeypatch.setattr(service.gateway, "request", request)
+    item = service.update_exercise_item("ex-1", ExerciseLibraryUpdate(guidance="Pause at the bottom."))
+    patch = next(
+        json for method, path, json in seen if method == "PATCH" and path.endswith("/rest/v1/exercise_library_items")
+    )
+    assert patch == {"guidance": "Pause at the bottom."}
+    assert item["guidance"] == "Pause at the bottom."

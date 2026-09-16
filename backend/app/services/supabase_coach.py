@@ -8,7 +8,16 @@ from urllib.parse import quote
 from app.core.config import Settings
 from app.core.errors import APIError
 from app.core.supabase import AuthenticatedUser, SupabaseAdminGateway, SupabaseGateway
-from app.schemas.coach import ClientCoachingContextUpdate, ClientOnboardingCreate, ClientSetup, PrivateNoteCreate
+from app.schemas.coach import (
+    ClientCoachingContextUpdate,
+    ClientOnboardingCreate,
+    ClientSetup,
+    ExerciseLibraryCreate,
+    ExerciseLibraryUpdate,
+    FoodLibraryCreate,
+    FoodLibraryUpdate,
+    PrivateNoteCreate,
+)
 from app.services.r2_photo_storage import R2PhotoStorage
 from app.services.progress import schedule
 
@@ -276,6 +285,146 @@ class SupabaseCoachService:
             },
         )
         return self._client_setup(client_id)
+
+    def list_libraries(self) -> dict[str, list[dict[str, Any]]]:
+        """Return this coach's food and exercise libraries, including inactive rows."""
+
+        self._require_active_coach()
+        food = self._rows(
+            "food_library_items",
+            {"owner_coach_id": f"eq.{self.user.id}", "order": "name.asc", "limit": 2000},
+        )
+        exercises = self._rows(
+            "exercise_library_items",
+            {"owner_coach_id": f"eq.{self.user.id}", "order": "name.asc", "limit": 2000},
+        )
+        return {
+            "food": [self._food_item(item) for item in sorted(food, key=lambda row: row["name"].lower())],
+            "exercises": [
+                self._exercise_item(item) for item in sorted(exercises, key=lambda row: row["name"].lower())
+            ],
+        }
+
+    def create_food_item(self, payload: FoodLibraryCreate) -> dict[str, Any]:
+        self._require_active_coach()
+        rows = self._write_library(
+            "POST",
+            "food_library_items",
+            {"owner_coach_id": self.user.id, **payload.model_dump()},
+        )
+        if not rows:
+            raise APIError(503, "library_item_save_failed", "Food library item was not saved")
+        item = rows[0]
+        self._audit_library("food_library_item_saved", "food_library_item", item)
+        return self._food_item(item)
+
+    def update_food_item(self, item_id: str, payload: FoodLibraryUpdate) -> dict[str, Any]:
+        self._require_active_coach()
+        self._one("food_library_items", {"id": f"eq.{item_id}"}, "library_item_forbidden")
+        rows = self._write_library(
+            "PATCH",
+            "food_library_items",
+            payload.model_dump(exclude_unset=True),
+            params={"id": f"eq.{item_id}"},
+        )
+        if not rows:
+            raise APIError(403, "library_item_forbidden", "The current workspace is not authorized for this action")
+        item = rows[0]
+        self._audit_library("food_library_item_saved", "food_library_item", item)
+        return self._food_item(item)
+
+    def create_exercise_item(self, payload: ExerciseLibraryCreate) -> dict[str, Any]:
+        self._require_active_coach()
+        rows = self._write_library(
+            "POST",
+            "exercise_library_items",
+            {"owner_coach_id": self.user.id, **payload.model_dump()},
+        )
+        if not rows:
+            raise APIError(503, "library_item_save_failed", "Exercise library item was not saved")
+        item = rows[0]
+        self._audit_library("exercise_library_item_saved", "exercise_library_item", item)
+        return self._exercise_item(item)
+
+    def update_exercise_item(self, item_id: str, payload: ExerciseLibraryUpdate) -> dict[str, Any]:
+        self._require_active_coach()
+        self._one("exercise_library_items", {"id": f"eq.{item_id}"}, "library_item_forbidden")
+        rows = self._write_library(
+            "PATCH",
+            "exercise_library_items",
+            payload.model_dump(exclude_unset=True),
+            params={"id": f"eq.{item_id}"},
+        )
+        if not rows:
+            raise APIError(403, "library_item_forbidden", "The current workspace is not authorized for this action")
+        item = rows[0]
+        self._audit_library("exercise_library_item_saved", "exercise_library_item", item)
+        return self._exercise_item(item)
+
+    def _write_library(
+        self,
+        method: str,
+        table: str,
+        payload: dict[str, Any],
+        *,
+        params: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
+        try:
+            return self._write(method, table, payload, params=params)
+        except APIError as exc:
+            message = exc.message or ""
+            if (
+                exc.status_code == 409
+                or exc.code == "23505"
+                or "23505" in message
+                or "duplicate key" in message.lower()
+            ):
+                raise APIError(
+                    409,
+                    "library_item_name_conflict",
+                    "A library item with this name already exists",
+                ) from exc
+            raise
+
+    def _audit_library(self, action: str, entity_type: str, item: dict[str, Any]) -> None:
+        self._write(
+            "POST",
+            "audit_events",
+            {
+                "actor_profile_id": self.user.id,
+                "action": action,
+                "entity_type": entity_type,
+                "entity_id": item.get("id"),
+                "metadata": {
+                    "id": item.get("id"),
+                    "name": item.get("name"),
+                    "is_active": bool(item.get("is_active", True)),
+                },
+            },
+        )
+
+    def _food_item(self, item: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "id": item["id"],
+            "name": item["name"],
+            "category": item["category"],
+            "calories_kcal": self._number(item.get("calories_kcal")),
+            "protein_g": self._number(item.get("protein_g")),
+            "carbs_g": self._number(item.get("carbs_g")),
+            "fat_g": self._number(item.get("fat_g")),
+            "is_active": bool(item.get("is_active", True)),
+        }
+
+    @staticmethod
+    def _exercise_item(item: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "id": item["id"],
+            "name": item["name"],
+            "body_region": item["body_region"],
+            "training_focus": item["training_focus"],
+            "guidance": item.get("guidance") or "",
+            "is_active": bool(item.get("is_active", True)),
+        }
 
     def _client_setup(self, client_id: str, client: dict[str, Any] | None = None) -> dict[str, Any]:
         client = client or self._one("clients", {"id": f"eq.{client_id}"}, "client_not_found")
