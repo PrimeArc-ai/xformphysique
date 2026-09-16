@@ -86,6 +86,12 @@ export const coachApi = {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   }),
+  getSettings: (accessToken) => request('/coach/settings', accessToken),
+  saveSettings: (payload, accessToken) => request('/coach/settings', accessToken, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }),
   getPrivatePhotoUrl: (contentPath, accessToken) => privateObjectUrl(contentPath, accessToken),
   updateClientCoachingContext: (clientId, payload, accessToken) => request(`/coach/clients/${clientId}/coaching-context`, accessToken, {
     method: 'PATCH',

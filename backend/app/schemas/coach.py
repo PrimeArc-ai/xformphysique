@@ -249,3 +249,19 @@ class ExerciseLibraryItem(BaseModel):
 class CoachLibrariesResponse(BaseModel):
     food: list[FoodLibraryItem]
     exercises: list[ExerciseLibraryItem]
+
+
+class CoachSettingsUpdate(CoachAPIModel):
+    weight_unit: Literal["kg", "lb"]
+    default_check_in_day: Weekday
+    default_missing_weight_threshold_days: int = Field(ge=1, le=90)
+    default_measurement_refresh_threshold_days: int = Field(ge=1, le=365)
+    enabled_measurements: list[Measurement]
+
+
+class CoachSettingsResponse(BaseModel):
+    weight_unit: Literal["kg", "lb"]
+    default_check_in_day: Weekday
+    default_missing_weight_threshold_days: int
+    default_measurement_refresh_threshold_days: int
+    enabled_measurements: list[Measurement]

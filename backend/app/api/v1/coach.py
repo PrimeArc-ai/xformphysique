@@ -17,6 +17,8 @@ from app.schemas.coach import (
     CoachClientReviewResponse,
     CoachLibrariesResponse,
     CoachPrivateNote,
+    CoachSettingsResponse,
+    CoachSettingsUpdate,
     ExerciseLibraryCreate,
     ExerciseLibraryItem,
     ExerciseLibraryUpdate,
@@ -304,6 +306,27 @@ def update_exercise_library_item(
     """Edit or disable an exercise library item owned by the authenticated coach."""
 
     return SupabaseCoachService(settings=settings, user=user).update_exercise_item(item_id, payload)
+
+
+@router.get("/settings", response_model=CoachSettingsResponse, responses=ERROR_RESPONSES)
+def get_coach_settings(
+    settings: Settings = Depends(get_settings),
+    user: AuthenticatedUser = Depends(get_authenticated_user),
+):
+    """Return this coach's settings, creating the owner row with defaults if missing."""
+
+    return SupabaseCoachService(settings=settings, user=user).get_settings()
+
+
+@router.put("/settings", response_model=CoachSettingsResponse, responses=ERROR_RESPONSES)
+def save_coach_settings(
+    payload: CoachSettingsUpdate,
+    settings: Settings = Depends(get_settings),
+    user: AuthenticatedUser = Depends(get_authenticated_user),
+):
+    """Persist coach-wide units, check-in day, thresholds and enabled measurements."""
+
+    return SupabaseCoachService(settings=settings, user=user).save_settings(payload)
 
 
 @router.get(

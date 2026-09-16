@@ -9,6 +9,7 @@ from app.core.errors import APIError
 from app.core.supabase import AuthenticatedUser
 from app.schemas.coach import (
     ClientSetup,
+    CoachSettingsUpdate,
     ExerciseLibraryCreate,
     ExerciseLibraryUpdate,
     FoodLibraryCreate,
@@ -742,3 +743,143 @@ def test_patch_exercise_item_updates_guidance(monkeypatch: pytest.MonkeyPatch) -
     )
     assert patch == {"guidance": "Pause at the bottom."}
     assert item["guidance"] == "Pause at the bottom."
+
+
+def test_save_settings_writes_coach_settings_and_audit(monkeypatch: pytest.MonkeyPatch) -> None:
+    seen: list[tuple[str, str, object]] = []
+    service = coach_service()
+    row = {
+        "coach_id": "coach-id",
+        "weight_unit": "kg",
+        "default_check_in_day": "sunday",
+        "default_missing_weight_threshold_days": 3,
+        "default_measurement_refresh_threshold_days": 14,
+        "enabled_measurements": ["weight_kg", "waist_cm"],
+        "formula_registry": ["rolling_average", "rate_of_change"],
+    }
+
+    def request(method: str, path: str, **kwargs):
+        seen.append((method, path, kwargs.get("json")))
+        params = kwargs.get("params") or {}
+        identity = _coach_identity(path, params)
+        if identity is not None:
+            return identity
+        if path.endswith("/rest/v1/coach_settings") and method == "PATCH":
+            row.update(kwargs.get("json") or {})
+            return FakeResponse(200, [row])
+        if path.endswith("/rest/v1/coach_settings") and method == "POST":
+            row.update(kwargs.get("json") or {})
+            return FakeResponse(201, [row])
+        if path.endswith("/rest/v1/audit_events") and method == "POST":
+            return FakeResponse(201, [{"id": "audit-settings"}])
+        raise AssertionError(f"Unexpected request: {method} {path}")
+
+    monkeypatch.setattr(service.gateway, "request", request)
+    result = service.save_settings(
+        CoachSettingsUpdate(
+            weight_unit="lb",
+            default_check_in_day="wednesday",
+            default_missing_weight_threshold_days=5,
+            default_measurement_refresh_threshold_days=21,
+            enabled_measurements=["weight_kg", "waist_cm", "hip_cm"],
+        )
+    )
+
+    settings_write = next(
+        json
+        for method, path, json in seen
+        if path.endswith("/rest/v1/coach_settings") and method in {"PATCH", "PUT", "POST"}
+    )
+    assert settings_write["weight_unit"] == "lb"
+    assert settings_write["default_check_in_day"] == "wednesday"
+    assert settings_write["default_missing_weight_threshold_days"] == 5
+    assert settings_write["default_measurement_refresh_threshold_days"] == 21
+    assert settings_write["enabled_measurements"] == ["weight_kg", "waist_cm", "hip_cm"]
+    assert "formula_registry" not in settings_write
+    audit = next(json for _, path, json in seen if path.endswith("/rest/v1/audit_events"))
+    assert audit["action"] == "coach_settings_saved"
+    assert audit.get("client_id") is None
+    assert audit["metadata"] == {"unit": "lb", "threshold": 5}
+    assert result["weight_unit"] == "lb"
+    assert result["default_missing_weight_threshold_days"] == 5
+    assert "formula_registry" not in result
+
+
+def test_get_settings_inserts_defaults_when_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+    seen: list[tuple[str, str, object]] = []
+    service = coach_service()
+
+    def request(method: str, path: str, **kwargs):
+        seen.append((method, path, kwargs.get("json")))
+        params = kwargs.get("params") or {}
+        identity = _coach_identity(path, params)
+        if identity is not None:
+            return identity
+        if path.endswith("/rest/v1/coach_settings") and method == "GET":
+            return FakeResponse(200, [])
+        if path.endswith("/rest/v1/coach_settings") and method == "POST":
+            payload = kwargs.get("json") or {}
+            return FakeResponse(
+                201,
+                [
+                    {
+                        "coach_id": payload.get("coach_id"),
+                        "weight_unit": "kg",
+                        "default_check_in_day": "sunday",
+                        "default_missing_weight_threshold_days": 3,
+                        "default_measurement_refresh_threshold_days": 14,
+                        "enabled_measurements": ["weight_kg", "waist_cm"],
+                        "formula_registry": ["rolling_average", "rate_of_change"],
+                    }
+                ],
+            )
+        raise AssertionError(f"Unexpected request: {method} {path}")
+
+    monkeypatch.setattr(service.gateway, "request", request)
+    result = service.get_settings()
+
+    insert = next(json for method, path, json in seen if method == "POST" and path.endswith("/rest/v1/coach_settings"))
+    assert insert == {"coach_id": "coach-id"}
+    assert result["weight_unit"] == "kg"
+    assert result["default_check_in_day"] == "sunday"
+    assert result["default_missing_weight_threshold_days"] == 3
+    assert result["default_measurement_refresh_threshold_days"] == 14
+    assert result["enabled_measurements"] == ["weight_kg", "waist_cm"]
+    assert "formula_registry" not in result
+    assert not any(path.endswith("/rest/v1/audit_events") for _, path, _ in seen)
+
+
+def test_get_settings_returns_existing_row_without_insert(monkeypatch: pytest.MonkeyPatch) -> None:
+    seen: list[tuple[str, str, object]] = []
+    service = coach_service()
+
+    def request(method: str, path: str, **kwargs):
+        seen.append((method, path, kwargs.get("json")))
+        params = kwargs.get("params") or {}
+        identity = _coach_identity(path, params)
+        if identity is not None:
+            return identity
+        if path.endswith("/rest/v1/coach_settings") and method == "GET":
+            return FakeResponse(
+                200,
+                [
+                    {
+                        "coach_id": "coach-id",
+                        "weight_unit": "lb",
+                        "default_check_in_day": "friday",
+                        "default_missing_weight_threshold_days": 7,
+                        "default_measurement_refresh_threshold_days": 30,
+                        "enabled_measurements": ["weight_kg", "waist_cm", "body_fat_pct"],
+                        "formula_registry": ["rolling_average"],
+                    }
+                ],
+            )
+        raise AssertionError(f"Unexpected request: {method} {path}")
+
+    monkeypatch.setattr(service.gateway, "request", request)
+    result = service.get_settings()
+
+    assert result["weight_unit"] == "lb"
+    assert result["default_check_in_day"] == "friday"
+    assert result["default_missing_weight_threshold_days"] == 7
+    assert not any(method == "POST" and path.endswith("/rest/v1/coach_settings") for method, path, _ in seen)

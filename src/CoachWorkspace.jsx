@@ -67,6 +67,16 @@ function setupDraftFromReview(setup) {
   }
 }
 
+function settingsDraft(settings) {
+  return {
+    weight_unit: settings?.weight_unit || 'kg',
+    default_check_in_day: settings?.default_check_in_day || 'sunday',
+    default_missing_weight_threshold_days: settings?.default_missing_weight_threshold_days ?? 3,
+    default_measurement_refresh_threshold_days: settings?.default_measurement_refresh_threshold_days ?? 14,
+    enabled_measurements: (settings?.enabled_measurements || ['weight_kg', 'waist_cm']).join(','),
+  }
+}
+
 function relativeDate(value) {
   if (!value) return 'No entry'
   const today = new Date()
@@ -431,9 +441,148 @@ function CoachProfilePhoto({ account, profilePhoto, onUploadProfilePhoto }) {
   </section>
 }
 
-function CoachSettings({ notice, account, profilePhoto, onUploadProfilePhoto }) {
+function CoachSettings({ notice, account, profilePhoto, onUploadProfilePhoto, accessToken }) {
   const [active, setActive] = useState('System setup')
-  return <section className="coach-page"><CoachHeading eyebrow="COACH / SYSTEM CONFIGURATION" title="Settings" copy="Measurement logic, targets, units and safe data operations." /><CoachProfilePhoto account={account} profilePhoto={profilePhoto} onUploadProfilePhoto={onUploadProfilePhoto} /><div className="coach-settings-layout"><nav>{['System setup', 'Data tools', 'Security'].map((item) => <button className={active === item ? 'selected' : ''} onClick={() => setActive(item)} key={item}>{item}</button>)}</nav><section className="panel">{active === 'System setup' && <><header><div><p className="kicker">TRACKING CONFIGURATION</p><span>Coach-wide defaults. Backend becomes source of truth.</span></div><Status tone="preview">LOCAL</Status></header><form className="coach-settings-form" onSubmit={(event) => { event.preventDefault(); notice('System settings saved in local preview.') }}><label>Weight unit<select defaultValue="Kilograms (kg)"><option>Kilograms (kg)</option><option>Pounds (lb)</option></select></label><label>Default check-in day<select defaultValue="Sunday"><option>Sunday</option><option>Wednesday</option><option>Friday</option></select></label><label>Missing weight threshold<input defaultValue="3 days" /></label><label>Measurement refresh threshold<input defaultValue="14 days" /></label><label className="wide-field">Enabled measurements<textarea rows="3" defaultValue="Weight, waist, hip, body fat percentage" /></label><label className="wide-field">Formula registry<textarea rows="3" defaultValue="BMI, fat mass, rolling average, rate of change" /></label><footer><span>Formula calculations stay server-owned later.</span><button className="coach-primary">Save settings</button></footer></form></>}{active === 'Data tools' && <><header><div><p className="kicker">DATA TOOLS</p><span>CSV contract preview. No local file processing yet.</span></div></header><div className="coach-data-tools"><article><CoachGlyph name="upload" /><div><strong>Import clients</strong><span>Validate required fields, duplicate IDs and invalid values before commit.</span></div><button className="coach-primary" onClick={() => notice('CSV import validation needs backend endpoint.')}>Preview import</button></article><article><CoachGlyph name="export" /><div><strong>Export client data</strong><span>Generate controlled export by client and time range.</span></div><button className="coach-secondary" onClick={() => notice('Client export needs backend data access.')}>Prepare export</button></article></div></>}{active === 'Security' && <><header><div><p className="kicker">SECURITY BOUNDARY</p><span>Authentication and data isolation belong to backend.</span></div></header><div className="coach-security-list"><div><strong>Client ownership</strong><span>Server-enforced per coach/client relationship.</span></div><div><strong>Private notes</strong><span>Access-controlled and audited.</span></div><div><strong>Photos and health records</strong><span>Private object storage with consent and retention.</span></div></div></>}</section></div></section>
+  const [draft, setDraft] = useState(settingsDraft())
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const settings = await coachApi.getSettings(accessToken)
+      setDraft(settingsDraft(settings))
+    } catch (reason) {
+      notice(reason.message || 'Could not load settings.')
+    } finally {
+      setLoading(false)
+    }
+  }, [accessToken, notice])
+
+  useEffect(() => { load() }, [load])
+
+  const setField = (field, value) => setDraft((current) => ({ ...current, [field]: value }))
+
+  const save = async (event) => {
+    event.preventDefault()
+    setSaving(true)
+    try {
+      const settings = await coachApi.saveSettings({
+        weight_unit: draft.weight_unit,
+        default_check_in_day: draft.default_check_in_day,
+        default_missing_weight_threshold_days: Number(draft.default_missing_weight_threshold_days),
+        default_measurement_refresh_threshold_days: Number(draft.default_measurement_refresh_threshold_days),
+        enabled_measurements: draft.enabled_measurements.split(',').filter(Boolean),
+      }, accessToken)
+      setDraft(settingsDraft(settings))
+      notice('Settings saved.')
+    } catch (reason) {
+      notice(reason.message || 'Could not save settings.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <section className="coach-page">
+      <CoachHeading eyebrow="COACH / SYSTEM CONFIGURATION" title="Settings" copy="Measurement logic, targets, units and safe data operations." />
+      <CoachProfilePhoto account={account} profilePhoto={profilePhoto} onUploadProfilePhoto={onUploadProfilePhoto} />
+      <div className="coach-settings-layout">
+        <nav>
+          {['System setup', 'Data tools', 'Security'].map((item) => (
+            <button className={active === item ? 'selected' : ''} onClick={() => setActive(item)} key={item} type="button">{item}</button>
+          ))}
+        </nav>
+        <section className="panel">
+          {active === 'System setup' && (
+            <>
+              <header>
+                <div>
+                  <p className="kicker">TRACKING CONFIGURATION</p>
+                  <span>Coach-wide defaults. Backend is the source of truth.</span>
+                </div>
+                <Status tone="good">LIVE</Status>
+              </header>
+              {loading ? (
+                <div className="coach-empty"><CoachGlyph name="settings" /><strong>Loading settings…</strong></div>
+              ) : (
+                <form className="coach-settings-form" onSubmit={save}>
+                  <label>Weight unit
+                    <select value={draft.weight_unit} onChange={(event) => setField('weight_unit', event.target.value)}>
+                      <option value="kg">Kilograms (kg)</option>
+                      <option value="lb">Pounds (lb)</option>
+                    </select>
+                  </label>
+                  <label>Default check-in day
+                    <select value={draft.default_check_in_day} onChange={(event) => setField('default_check_in_day', event.target.value)}>
+                      {['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map((day) => (
+                        <option value={day} key={day}>{day[0].toUpperCase()}{day.slice(1)}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>Missing weight threshold (days)
+                    <input type="number" min="1" max="90" value={draft.default_missing_weight_threshold_days} onChange={(event) => setField('default_missing_weight_threshold_days', event.target.value)} required />
+                  </label>
+                  <label>Measurement refresh threshold (days)
+                    <input type="number" min="1" max="365" value={draft.default_measurement_refresh_threshold_days} onChange={(event) => setField('default_measurement_refresh_threshold_days', event.target.value)} required />
+                  </label>
+                  <label className="wide-field">Enabled measurements
+                    <select value={draft.enabled_measurements} onChange={(event) => setField('enabled_measurements', event.target.value)}>
+                      <option value="weight_kg">Weight only</option>
+                      <option value="weight_kg,waist_cm">Weight, waist</option>
+                      <option value="weight_kg,waist_cm,body_fat_pct">Weight, waist, body fat</option>
+                      <option value="weight_kg,waist_cm,hip_cm,body_fat_pct">Full body measurements</option>
+                    </select>
+                  </label>
+                  <footer>
+                    <span>Saving writes coach settings and an audit record.</span>
+                    <button className="coach-primary" type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save settings'}</button>
+                  </footer>
+                </form>
+              )}
+            </>
+          )}
+          {active === 'Data tools' && (
+            <>
+              <header>
+                <div>
+                  <p className="kicker">DATA TOOLS</p>
+                  <span>CSV contract preview. No local file processing yet.</span>
+                </div>
+              </header>
+              <div className="coach-data-tools">
+                <article>
+                  <CoachGlyph name="upload" />
+                  <div><strong>Import clients</strong><span>Validate required fields, duplicate IDs and invalid values before commit.</span></div>
+                  <button className="coach-primary" type="button" onClick={() => notice('CSV import is not in this slice')}>Preview import</button>
+                </article>
+                <article>
+                  <CoachGlyph name="export" />
+                  <div><strong>Export client data</strong><span>Generate controlled export by client and time range.</span></div>
+                  <button className="coach-secondary" type="button" onClick={() => notice('CSV export is not in this slice')}>Prepare export</button>
+                </article>
+              </div>
+            </>
+          )}
+          {active === 'Security' && (
+            <>
+              <header>
+                <div>
+                  <p className="kicker">SECURITY BOUNDARY</p>
+                  <span>Authentication and data isolation belong to backend.</span>
+                </div>
+              </header>
+              <div className="coach-security-list">
+                <div><strong>Client ownership</strong><span>Server-enforced per coach/client relationship.</span></div>
+                <div><strong>Private notes</strong><span>Access-controlled and audited.</span></div>
+                <div><strong>Photos and health records</strong><span>Private object storage with consent and retention.</span></div>
+              </div>
+            </>
+          )}
+        </section>
+      </div>
+    </section>
+  )
 }
 
 function CoachHealth() {
@@ -678,7 +827,7 @@ export default function CoachWorkspace({ account, accessToken, onSignOut }) {
           : active === 'Nutrition' ? <CoachNutrition clientId={selectedClientId} clients={clients} setClientId={setSelectedClientId} accessToken={accessToken} />
             : active === 'Workout' ? <CoachWorkout clientId={selectedClientId} clients={clients} setClientId={setSelectedClientId} accessToken={accessToken} />
               : active === 'Libraries' ? <CoachLibraries notice={setNotice} accessToken={accessToken} />
-                : active === 'Settings' ? <CoachSettings notice={setNotice} account={account} profilePhoto={profilePhoto} onUploadProfilePhoto={uploadProfilePhoto} />
+                : active === 'Settings' ? <CoachSettings notice={setNotice} account={account} profilePhoto={profilePhoto} onUploadProfilePhoto={uploadProfilePhoto} accessToken={accessToken} />
                   : active === 'Health' ? <CoachHealth />
                     : <CoachAudit />
   return <div className="os-shell coach-shell">

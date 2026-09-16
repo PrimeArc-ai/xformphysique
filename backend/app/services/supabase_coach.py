@@ -12,6 +12,7 @@ from app.schemas.coach import (
     ClientCoachingContextUpdate,
     ClientOnboardingCreate,
     ClientSetup,
+    CoachSettingsUpdate,
     ExerciseLibraryCreate,
     ExerciseLibraryUpdate,
     FoodLibraryCreate,
@@ -385,6 +386,60 @@ class SupabaseCoachService:
                     "A library item with this name already exists",
                 ) from exc
             raise
+
+    def get_settings(self) -> dict[str, Any]:
+        """Return this coach's settings row, inserting database defaults if missing."""
+
+        self._require_active_coach()
+        row = self._one_or_none("coach_settings", {"coach_id": f"eq.{self.user.id}"})
+        if row is None:
+            rows = self._write("POST", "coach_settings", {"coach_id": self.user.id})
+            if not rows:
+                raise APIError(503, "settings_save_failed", "Coach settings were not created")
+            row = rows[0]
+        return self._settings_payload(row)
+
+    def save_settings(self, payload: CoachSettingsUpdate) -> dict[str, Any]:
+        """Persist coach-wide defaults. Does not write formula_registry."""
+
+        self._require_active_coach()
+        fields = payload.model_dump()
+        rows = self._write(
+            "PATCH",
+            "coach_settings",
+            fields,
+            params={"coach_id": f"eq.{self.user.id}"},
+        )
+        if not rows:
+            rows = self._write("POST", "coach_settings", {"coach_id": self.user.id, **fields})
+        if not rows:
+            raise APIError(503, "settings_save_failed", "Coach settings were not saved")
+        row = rows[0]
+        self._write(
+            "POST",
+            "audit_events",
+            {
+                "actor_profile_id": self.user.id,
+                "action": "coach_settings_saved",
+                "entity_type": "coach_settings",
+                "entity_id": self.user.id,
+                "metadata": {
+                    "unit": payload.weight_unit,
+                    "threshold": payload.default_missing_weight_threshold_days,
+                },
+            },
+        )
+        return self._settings_payload(row)
+
+    @staticmethod
+    def _settings_payload(row: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "weight_unit": row["weight_unit"],
+            "default_check_in_day": row["default_check_in_day"],
+            "default_missing_weight_threshold_days": int(row["default_missing_weight_threshold_days"]),
+            "default_measurement_refresh_threshold_days": int(row["default_measurement_refresh_threshold_days"]),
+            "enabled_measurements": list(row.get("enabled_measurements") or ["weight_kg", "waist_cm"]),
+        }
 
     def _audit_library(self, action: str, entity_type: str, item: dict[str, Any]) -> None:
         self._write(
