@@ -267,6 +267,35 @@ test('saves a normalized draft snapshot and restores it after reload', async ({ 
   await expect(page.getByLabel('Meal 3 ingredient 1 name')).toHaveValue('Rice')
 })
 
+test('keeps restrictions editable while typing comma-separated tags', async ({ page }) => {
+  const state = nutritionPlanFixture()
+  await mockNutritionPlan(page, state)
+  await loginCoach(page)
+  await openBuilder(page)
+
+  const restrictions = page.getByLabel('Restrictions')
+  await restrictions.pressSequentially('shellfish-free, dairy')
+  await expect(restrictions).toHaveValue('shellfish-free, dairy')
+})
+
+test('does not overwrite edits made while a draft save is in flight', async ({ page }) => {
+  const state = nutritionPlanFixture()
+  state.deferredDraft = {}
+  await mockNutritionPlan(page, state)
+  await loginCoach(page)
+  await openBuilder(page)
+
+  await completeRequiredPlan(page, 2, 'Before save')
+  await page.getByRole('button', { name: 'Save draft', exact: true }).click()
+  await expect.poll(() => state.draftCalls.length).toBe(1)
+  await page.getByLabel('Plan name').fill('Edited while saving')
+  state.deferredDraft.resolve()
+
+  await expect.poll(() => state.draftResponses).toBe(1)
+  await expect(page.getByLabel('Plan name')).toHaveValue('Edited while saving')
+  await expect(page.getByText('Draft saved.')).toBeVisible()
+})
+
 test('confirms the meal count and refreshes the published plan', async ({ page }) => {
   const state = nutritionPlanFixture()
   await mockNutritionPlan(page, state)
@@ -310,6 +339,30 @@ test('reuses a publish key after transport failure and clears it after edits', a
   await expect(page.getByText('Plan published')).toBeVisible()
   expect(state.publishCalls[2].publish_key).not.toBe(state.publishCalls[1].publish_key)
   expect(state.publishCalls[2].plan.name).toBe('Changed daily fuel')
+})
+
+test('keeps a failed publish key when saving a draft before retry', async ({ page }) => {
+  const state = nutritionPlanFixture()
+  state.failedPublishesRemaining = 1
+  await mockNutritionPlan(page, state)
+  await loginCoach(page)
+  await openBuilder(page)
+
+  await completeRequiredPlan(page)
+  await page.getByRole('button', { name: 'Publish nutrition plan', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: 'Confirm nutrition plan' })
+  await dialog.getByRole('button', { name: 'Confirm publish', exact: true }).click()
+  await expect(page.getByText('Publish service unavailable. Retry safely.')).toBeVisible()
+  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
+
+  await page.getByRole('button', { name: 'Save draft', exact: true }).click()
+  await expect(page.getByText('Draft saved.')).toBeVisible()
+  await page.getByRole('button', { name: 'Publish nutrition plan', exact: true }).click()
+  await page.getByRole('dialog').getByRole('button', { name: 'Confirm publish', exact: true }).click()
+  await expect(page.getByText('Plan published')).toBeVisible()
+
+  expect(state.publishCalls).toHaveLength(2)
+  expect(state.publishCalls[1].publish_key).toBe(state.publishCalls[0].publish_key)
 })
 
 test('ignores stale draft and publish responses after the selected client changes', async ({ page }) => {

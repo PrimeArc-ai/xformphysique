@@ -47,12 +47,17 @@ function snapshotPlan(source) {
   }
 }
 
+function parseRestrictions(value) {
+  return [...new Set(value.split(',').map(item => item.trim()).filter(Boolean))]
+}
+
 function FieldError({ children }) {
   return children ? <small className="program-field-error">{children}</small> : null
 }
 
 export default function NutritionPlanBuilder({ client, accessToken }) {
   const [plan, setPlan] = useState(() => emptyPlan(localDate()))
+  const [restrictionsInput, setRestrictionsInput] = useState('')
   const [workspace, setWorkspace] = useState(null)
   const [errors, setErrors] = useState({})
   const [busy, setBusy] = useState('')
@@ -62,6 +67,7 @@ export default function NutritionPlanBuilder({ client, accessToken }) {
   const [loadedClientId, setLoadedClientId] = useState('')
   const [confirming, setConfirming] = useState(false)
   const publishKey = useRef(null)
+  const planRevision = useRef(0)
   const loadRequest = useRef(0)
   const clientIdentity = useRef(client.id)
   const clientGeneration = useRef(0)
@@ -85,12 +91,15 @@ export default function NutritionPlanBuilder({ client, accessToken }) {
     try {
       const result = await coachApi.getNutritionPlan(requestedClientId, accessToken)
       if (requestId !== loadRequest.current || !operationIsCurrent(requestedClientId, generation)) return
-      setWorkspace(result)
-      setPlan(result.draft
+      const nextPlan = result.draft
         ? snapshotPlan(result.draft)
         : result.active_plan
           ? snapshotPlan(result.active_plan)
-          : emptyPlan(localDate()))
+          : emptyPlan(localDate())
+      setWorkspace(result)
+      setPlan(nextPlan)
+      setRestrictionsInput(nextPlan.restrictions.join(', '))
+      planRevision.current = 0
       setLoadedClientId(requestedClientId)
     } catch (error) {
       if (requestId !== loadRequest.current || !operationIsCurrent(requestedClientId, generation)) return
@@ -111,10 +120,16 @@ export default function NutritionPlanBuilder({ client, accessToken }) {
   }, [loadWorkspace])
 
   const editPlan = updater => {
+    planRevision.current += 1
     publishKey.current = null
     setPlan(current => typeof updater === 'function' ? updater(current) : updater)
     setErrors({})
     setNotice('')
+  }
+
+  const updateRestrictions = value => {
+    setRestrictionsInput(value)
+    editPlan(current => ({ ...current, restrictions: parseRestrictions(value) }))
   }
 
   const updatePlanField = (field, value) => {
@@ -171,14 +186,18 @@ export default function NutritionPlanBuilder({ client, accessToken }) {
     if (!validPlan()) return
     const requestedClientId = client.id
     const generation = clientGeneration.current
-    publishKey.current = null
+    const revision = planRevision.current
     setBusy('draft')
     setNotice('')
     try {
       const result = await coachApi.saveNutritionPlanDraft(requestedClientId, plan, accessToken)
       if (!operationIsCurrent(requestedClientId, generation)) return
       setWorkspace(current => ({ ...current, draft: result.plan }))
-      setPlan(snapshotPlan(result.plan))
+      if (planRevision.current === revision) {
+        const savedPlan = snapshotPlan(result.plan)
+        setPlan(savedPlan)
+        setRestrictionsInput(savedPlan.restrictions.join(', '))
+      }
       setNotice('Draft saved.')
     } catch (error) {
       if (operationIsCurrent(requestedClientId, generation)) setNotice(error.message || 'Draft could not be saved. Your entries are still here.')
@@ -209,7 +228,9 @@ export default function NutritionPlanBuilder({ client, accessToken }) {
       const result = await coachApi.publishNutritionPlan(requestedClientId, requestedPublishKey, plan, accessToken)
       if (!operationIsCurrent(requestedClientId, generation)) return
       setWorkspace(current => ({ ...current, active_plan: result.plan, draft: null }))
-      setPlan(snapshotPlan(result.plan))
+      const publishedPlan = snapshotPlan(result.plan)
+      setPlan(publishedPlan)
+      setRestrictionsInput(publishedPlan.restrictions.join(', '))
       setNotice('Plan published')
       setConfirming(false)
       publishKey.current = null
@@ -273,7 +294,7 @@ export default function NutritionPlanBuilder({ client, accessToken }) {
           <FieldError>{errors.fat_g}</FieldError>
         </label>
         <label className="program-wide-field">Restrictions
-          <input value={plan.restrictions.join(', ')} placeholder="Comma-separated tags" onChange={event => updatePlanField('restrictions', [...new Set(event.target.value.split(',').map(item => item.trim()).filter(Boolean))])} />
+          <input value={restrictionsInput} placeholder="Comma-separated tags" onChange={event => updateRestrictions(event.target.value)} />
         </label>
       </div>
 
