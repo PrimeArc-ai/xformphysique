@@ -190,6 +190,11 @@ select set_config('request.jwt.claim.role', 'authenticated', true);
 set role authenticated;
 
 select pg_temp.assert_true(
+  not has_table_privilege('service_role', 'public.client_foundation_intakes', 'INSERT, UPDATE, DELETE, TRUNCATE'),
+  'service_role cannot mutate foundation intakes directly'
+);
+
+select pg_temp.assert_true(
   (select count(*) from public.client_foundation_intakes
     where client_id = '80000000-0000-0000-0000-000000000002') = 0,
   'admin cannot select answers'

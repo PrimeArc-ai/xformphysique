@@ -38,9 +38,8 @@ create trigger client_foundation_intakes_set_updated_at
   for each row execute function public.set_updated_at();
 
 alter table public.client_foundation_intakes enable row level security;
-revoke all on public.client_foundation_intakes from public, anon, authenticated;
+revoke all on public.client_foundation_intakes from public, anon, authenticated, service_role;
 grant select on public.client_foundation_intakes to authenticated;
-grant all on public.client_foundation_intakes to service_role;
 
 drop policy if exists foundation_intakes_select_accessible on public.client_foundation_intakes;
 create policy foundation_intakes_select_accessible
