@@ -16,7 +16,7 @@ async function isolate(page, role, { rejectUpdate = false, rejectEmail = false }
     if (url.pathname.endsWith('/logout')) return route.fulfill({ status: 204 })
     return route.fulfill({ json: user })
   })
-  await page.route('**/api/v1/auth/me*', route => { calls.push({ path: '/api/v1/auth/me' }); return route.fulfill({ json: { ...user, role, first_name: role, full_name: 'Recovery Test' } }) })
+  await page.route('**/api/v1/auth/me*', route => { calls.push({ path: '/api/v1/auth/me' }); return route.fulfill({ json: { ...user, role, first_name: role, full_name: 'Recovery Test', ...(role === 'client' ? { foundation_intake_status: 'not_required' } : {}) } }) })
   return { calls, unexpected }
 }
 

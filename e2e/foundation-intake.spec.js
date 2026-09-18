@@ -199,6 +199,170 @@ async function loginPendingClient(page, state = foundationState(), rememberedSte
   return state
 }
 
+function coachFoundationState() {
+  return {
+    roster: [{
+      id: 'client-1',
+      client_code: 'XP-0012',
+      full_name: 'Navaneet Deshpande',
+      email: 'navaneet@example.test',
+      primary_goal: 'fat_loss',
+      check_in_day: 'sunday',
+      timezone: 'Asia/Kolkata',
+      latest_weight_kg: 78,
+      latest_entry_date: '2026-09-18',
+      latest_checkin_period_start: null,
+      needs_attention: false,
+      foundation_intake_status: 'submitted',
+      check_in_schedule: {
+        timezone: 'Asia/Kolkata',
+        today: '2026-09-18',
+        period_start: '2026-09-14',
+        due_on: '2026-09-20',
+        next_due_on: '2026-09-27',
+        previous_due_on: '2026-09-13',
+        current_status: 'upcoming',
+        day_of_week: 'sunday',
+        missed_count: 0,
+        consecutive_missed: 0,
+      },
+      attention_reasons: [],
+    }],
+    intake: {
+      status: 'submitted',
+      schema_version: 1,
+      answers: {
+        identity: {
+          full_name: 'Navaneet Deshpande',
+          date_of_birth: '1994-01-15',
+          sex: 'male',
+          mobile: '+91 98765 43210',
+          place_of_living: 'Pune, Maharashtra',
+          profession: 'Software engineer',
+        },
+        training: {
+          exercise_history: 'Never been to the gym',
+          current_program: 'No current training program.',
+        },
+        safety: {
+          physician_said_no_exercise: 'No.',
+        },
+      },
+      prefill: {
+        full_name: 'Navaneet Deshpande',
+        email: 'navaneet@example.test',
+      },
+      photos: {
+        front: null,
+        back: null,
+        side: null,
+        front_double_bicep: null,
+        back_double_bicep: null,
+      },
+      waiver_version: 'xform-foundation-waiver-v1',
+      attention_flags: [],
+      submitted_at: '2026-09-18T10:00:00Z',
+    },
+    review: {
+      client: {
+        id: 'client-1',
+        client_code: 'XP-0012',
+        full_name: 'Navaneet Deshpande',
+      },
+      body_entries: [],
+      checkins: [],
+      photo_count: 0,
+      progress_photos: [],
+      private_notes: [],
+      coaching_context: {
+        client_visible_coach_note: '',
+        training_considerations: [],
+        safety_notice: '',
+      },
+      setup: {
+        primary_goal: 'fat_loss',
+        check_in_day: 'sunday',
+        timezone: 'Asia/Kolkata',
+        dietary_preferences: '',
+        allergies_injuries: '',
+        enabled_measurements: ['weight_kg', 'waist_cm'],
+        target_weight_kg: null,
+        target_waist_cm: null,
+        target_date: null,
+      },
+    },
+  }
+}
+
+async function mockCoachFoundation(page, state) {
+  const user = {
+    id: 'coach-1',
+    email: 'coach@example.test',
+    aud: 'authenticated',
+    role: 'authenticated',
+    user_metadata: {},
+    app_metadata: {},
+  }
+
+  await page.route('**/*', route => {
+    const url = new URL(route.request().url())
+    if (!['127.0.0.1', 'localhost'].includes(url.hostname) || url.pathname.startsWith('/api/')) return route.abort()
+    return route.continue()
+  })
+
+  await page.route('**/auth/v1/**', route => route.fulfill({
+    json: route.request().url().includes('/token')
+      ? {
+          access_token: 'mock-coach-jwt',
+          refresh_token: 'mock-refresh',
+          expires_in: 3600,
+          token_type: 'bearer',
+          user,
+        }
+      : user,
+  }))
+
+  await page.route('**/api/v1/**', async route => {
+    const req = route.request()
+    const url = new URL(req.url())
+    const path = url.pathname
+    const method = req.method()
+    const json = data => route.fulfill({ json: data })
+
+    if (path === '/api/v1/auth/me') {
+      return json({
+        id: 'coach-1',
+        role: 'coach',
+        full_name: 'Aisha Kapoor',
+        first_name: 'Aisha',
+        email: 'coach@example.test',
+      })
+    }
+    if (path === '/api/v1/coach/profile/photo') return json({ photo: null })
+    if (path === '/api/v1/coach/clients' && method === 'GET') return json({ items: state.roster })
+    if (path === '/api/v1/coach/clients/client-1/review' && method === 'GET') return json(state.review)
+    if (path === '/api/v1/coach/clients/client-1/foundation-intake' && method === 'GET') return json(state.intake)
+    if (path === '/api/v1/coach/clients/client-1/progress-photos' && method === 'GET') return json({ items: [], has_more: false })
+    if (path === '/api/v1/coach/clients/client-1/check-ins' && method === 'GET') return json({ items: [], has_more: false })
+    if (path === '/api/v1/coach/clients/client-1/workout-history' && method === 'GET') return json({ items: [] })
+    if (path === '/api/v1/coach/clients/client-1/nutrition-plan' && method === 'GET') return json({ active_plan: null, draft: null, food_library: [] })
+    if (path === '/api/v1/coach/clients/client-1/workout-program' && method === 'GET') return json({ active_program: null, draft: null, exercise_library: [] })
+
+    return route.fulfill({ status: 501, json: { error: { message: `Unmocked ${method} ${path}` } } })
+  })
+
+  await page.goto('/')
+}
+
+async function loginCoach(page, state = coachFoundationState()) {
+  await mockCoachFoundation(page, state)
+  await page.getByRole('radio', { name: 'Coach', exact: true }).check()
+  await page.getByLabel('Email', { exact: true }).fill('coach@example.test')
+  await page.getByLabel('Password', { exact: true }).fill('SyntheticOnly!123')
+  await page.getByRole('button', { name: 'Sign In', exact: true }).click()
+  return state
+}
+
 test('pending client does not see dashboard navigation', async ({ page }) => {
   await loginPendingClient(page)
   await expect(page.getByRole('heading', { name: /Foundation form/i })).toBeVisible()
@@ -235,4 +399,12 @@ test('submit without waiver stays on the wizard and successful submit opens the 
   await expect(page.getByRole('button', { name: 'Dashboard' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Hello, Navaneet' })).toBeVisible()
   await expect(page.getByRole('heading', { name: /Foundation form/i })).toHaveCount(0)
+})
+
+test('coach reads submitted foundation answers', async ({ page }) => {
+  await loginCoach(page)
+  await page.getByRole('button', { name: 'Health', exact: true }).click()
+  await page.getByRole('combobox', { name: 'CLIENT', exact: true }).selectOption('client-1')
+  await expect(page.getByRole('heading', { name: 'Foundation form', exact: true })).toBeVisible()
+  await expect(page.getByText('Never been to the gym')).toBeVisible()
 })

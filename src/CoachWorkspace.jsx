@@ -5,6 +5,7 @@ import { CoachCheckIns } from './progress/WeeklyCheckIns'
 import ExerciseHistory from './progress/ExerciseHistory'
 import NutritionPlanBuilder from './coach/NutritionPlanBuilder'
 import WorkoutProgramBuilder from './coach/WorkoutProgramBuilder'
+import FoundationPanel from './coach/FoundationPanel'
 
 const coachNavigation = [
   ['overview', 'Overview'],
@@ -108,6 +109,7 @@ function apiClientToWorkspaceClient(item) {
     status: item.needs_attention ? 'Needs attention' : 'On track',
     goal: item.primary_goal.replaceAll('_', ' '),
     checkInDay: item.check_in_day[0].toUpperCase() + item.check_in_day.slice(1),
+    foundation_intake_status: item.foundation_intake_status || 'not_required',
     attention: item.needs_attention || item.check_in_schedule?.current_status === 'overdue',
     attention_reasons: item.attention_reasons || [],
   }
@@ -124,8 +126,8 @@ function CoachHeading({ eyebrow, title, copy, action, children }) {
   return <header className="coach-heading"><div><p className="kicker">{eyebrow}</p><h2>{title}</h2><p>{copy}</p></div>{action || children}</header>
 }
 
-function Status({ children, tone = '' }) {
-  return <span className={`coach-status ${tone}`}>{children}</span>
+function Status({ children, tone = '', className = '' }) {
+  return <span className={`coach-status ${tone} ${className}`.trim()}>{children}</span>
 }
 
 function ClientSelect({ clientId, clients, onChange }) {
@@ -189,7 +191,7 @@ function CoachClients({ clients, onSelectClient, onCreateClient, notice }) {
   const [filter, setFilter] = useState('All')
   const [showCreate, setShowCreate] = useState(false)
   const matches = useMemo(() => clients.filter((client) => (`${client.name} ${client.id}`).toLowerCase().includes(query.toLowerCase()) && (filter === 'All' || (filter === 'Needs attention' && client.attention) || client.status === filter)), [clients, query, filter])
-  return <section className="coach-page"><CoachHeading eyebrow="COACH / CLIENT OPERATIONS" title="Clients" copy="Every client record, one controlled workspace." action={<button className="coach-primary" onClick={() => setShowCreate(true)}><CoachGlyph name="plus" />New client</button>} /><div className="coach-roster-tools"><label className="coach-search"><CoachGlyph name="search" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search clients or ID" /></label><div className="coach-filter-group" aria-label="Client filters">{['All', 'Needs attention', 'On track', 'Missing data'].map((option) => <button className={filter === option ? 'selected' : ''} onClick={() => setFilter(option)} key={option}>{option}</button>)}</div><button className="coach-quiet-button" onClick={() => notice('CSV preview needs backend validation endpoint.')}><CoachGlyph name="export" />CSV preview</button></div><section className="coach-client-list">{matches.map((client) => <article key={client.id}><div className="roster-avatar">{client.initials}</div><div className="roster-primary"><strong>{client.name}</strong><span>{client.id} · {client.goal}</span></div><div><small>WEIGHT</small><span>{client.weight}</span></div><div><small>LAST ENTRY</small><span>{client.lastEntry}</span></div><div><small>CHECK-IN</small><span>{client.checkIn}</span></div><Status tone={client.attention ? 'warning' : 'good'}>{client.status}</Status><button className="row-open" onClick={() => onSelectClient(client.id)}>Review <CoachGlyph name="chevron" /></button></article>)}</section>{!matches.length && <div className="coach-empty"><CoachGlyph name="search" /><strong>No matching clients</strong><span>Change search or filter.</span></div>}{showCreate && <NewClientForm onCancel={() => setShowCreate(false)} onCreate={onCreateClient} />}</section>
+  return <section className="coach-page"><CoachHeading eyebrow="COACH / CLIENT OPERATIONS" title="Clients" copy="Every client record, one controlled workspace." action={<button className="coach-primary" onClick={() => setShowCreate(true)}><CoachGlyph name="plus" />New client</button>} /><div className="coach-roster-tools"><label className="coach-search"><CoachGlyph name="search" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search clients or ID" /></label><div className="coach-filter-group" aria-label="Client filters">{['All', 'Needs attention', 'On track', 'Missing data'].map((option) => <button className={filter === option ? 'selected' : ''} onClick={() => setFilter(option)} key={option}>{option}</button>)}</div><button className="coach-quiet-button" onClick={() => notice('CSV preview needs backend validation endpoint.')}><CoachGlyph name="export" />CSV preview</button></div><section className="coach-client-list">{matches.map((client) => <article key={client.id}><div className="roster-avatar">{client.initials}</div><div className="roster-primary"><div className="coach-roster-title"><strong>{client.name}</strong>{client.foundation_intake_status === 'pending' ? <Status tone="warn" className="coach-roster-chip">Intake pending</Status> : null}</div><span>{client.id} · {client.goal}</span></div><div><small>WEIGHT</small><span>{client.weight}</span></div><div><small>LAST ENTRY</small><span>{client.lastEntry}</span></div><div><small>CHECK-IN</small><span>{client.checkIn}</span></div><Status tone={client.attention ? 'warning' : 'good'}>{client.status}</Status><button className="row-open" onClick={() => onSelectClient(client.id)}>Review <CoachGlyph name="chevron" /></button></article>)}</section>{!matches.length && <div className="coach-empty"><CoachGlyph name="search" /><strong>No matching clients</strong><span>Change search or filter.</span></div>}{showCreate && <NewClientForm onCancel={() => setShowCreate(false)} onCreate={onCreateClient} />}</section>
 }
 
 function CoachNutrition({ clientId, clients, setClientId, accessToken }) {
@@ -624,6 +626,7 @@ function CoachHealth({ clientId, clients, setClientId, accessToken, navigate }) 
 
   return <section className="coach-page">
     <CoachHeading eyebrow="COACH / HEALTH CONTEXT" title="Health" copy="Coaching support only. Not medical advice. Safety context from the assigned client record — not a lab archive." action={<ClientSelect clientId={clientId} clients={clients} onChange={setClientId} />} />
+    {!stale && client?.id ? <FoundationPanel clientId={client.id} accessToken={accessToken} Status={Status} /> : null}
     {(loading || stale) && <div className="coach-empty"><CoachGlyph name="health" /><strong>Loading health context…</strong><span>Assigned-client safety fields only.</span></div>}
     {!loading && !stale && error && <section className="coach-empty"><CoachGlyph name="alert" /><strong>Protected client record unavailable</strong><span>{error}</span><button className="coach-secondary" type="button" onClick={load}>Try again</button></section>}
     {!loading && !stale && !error && review && <article className="panel">
@@ -798,6 +801,7 @@ function PersistedCoachReview({ client, accessToken, navigate, onNotice, bodyOnl
   const setSetupField = (field, value) => setSetupDraft((current) => ({ ...current, [field]: value }))
   return <section className="coach-page coach-has-photo-gallery">
     <CoachHeading eyebrow={`CLIENT REVIEW / ${review.client.client_code}`} title={heading} copy={copy} action={<button className="coach-quiet-button" onClick={() => navigate('Clients')}><CoachGlyph name="clients" />Back to clients</button>} />
+    {!bodyOnly ? <FoundationPanel clientId={client.id} accessToken={accessToken} Status={Status} /> : null}
     {!bodyOnly && <PhotoJournal key={client.id} clientId={client.id} token={accessToken} profile={review.client} checkIns={checkins} feedbackRevision={feedbackRevision} />}
     <section className="coach-metric-grid coach-three"><article><p>LATEST WEIGHT</p><strong>{latest ? `${latest.weight_kg}` : '—'}{latest && <small> kg</small>}</strong><span>{latest ? `Logged ${formatDate(latest.entry_date)}` : 'No body entry yet'}</span></article><article><p>BODY ENTRIES</p><strong>{bodyEntries.length}</strong><span>Last 100 authorized records</span></article><article><p>CHECK-INS</p><strong className={checkins.length ? 'lime-text' : 'attention-text'}>{checkins.length}</strong><span>{checkins.length ? `Latest ${formatDate(checkins[0].period_start)}` : 'No check-in submitted'}</span></article></section>
     {!bodyOnly && (trend ? <article className="panel coach-progress-panel"><header><div><p className="kicker">WEIGHT TREND</p><span>Chronological client-recorded weights.</span></div><Status tone="good">LIVE</Status></header><div className="coach-line-chart"><svg viewBox="0 0 640 210" preserveAspectRatio="none"><path d="M0 40H640M0 105H640M0 170H640" /><polyline points={trend.points} /></svg><span>{trend.startKg} kg</span><strong>{trend.endKg} kg</strong></div><footer><span>{formatDate(trend.startDate)}</span><span>{trend.change > 0 ? '+' : trend.change < 0 ? '−' : ''}{Math.abs(trend.change)} kg</span><span>{formatDate(trend.endDate)}</span></footer></article> : <div className="coach-empty"><CoachGlyph name="trend" /><strong>No trend yet</strong><span>Two weight entries are required before a trend can be drawn.</span></div>)}

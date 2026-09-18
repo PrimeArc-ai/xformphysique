@@ -13,7 +13,7 @@ async function mockApp(page, role = 'admin') {
     const portal = new URL(route.request().url()).searchParams.get('portal')
     return route.fulfill(portal && portal !== role
       ? { status: 403, json: { error: { message: 'This account cannot access the selected portal.' } } }
-      : { json: { id: 'admin-id', full_name: 'Navaneet Deshpande', first_name: 'Navaneet', email: 'admin@example.com', role } })
+      : { json: { id: 'admin-id', full_name: 'Navaneet Deshpande', first_name: 'Navaneet', email: 'admin@example.com', role, ...(role === 'client' ? { foundation_intake_status: 'not_required' } : {}) } })
   })
   await page.route('**/api/v1/admin/**', async route => {
     const url = route.request().url()

@@ -55,6 +55,7 @@ export const coachApi = {
   }),
   listClients: (accessToken) => request('/coach/clients', accessToken),
   getClientReview: (clientId, accessToken) => request(`/coach/clients/${clientId}/review`, accessToken),
+  getFoundationIntake: (clientId, accessToken) => request(`/coach/clients/${clientId}/foundation-intake`, accessToken),
   createPrivateNote: (clientId, payload, accessToken) => request(`/coach/clients/${clientId}/private-notes`, accessToken, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

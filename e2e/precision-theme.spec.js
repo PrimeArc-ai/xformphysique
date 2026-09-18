@@ -4,6 +4,28 @@ const date = '2026-09-07'
 const clientRecord = { id: 'design-client', full_name: 'Maya Shah', name: 'Maya Shah', client_code: 'XP-0017', email: 'maya@example.com', primary_goal: 'body_recomposition', check_in_day: 'sunday', timezone: 'Asia/Kolkata', target_weight_kg: 70, dietary_preferences: 'Vegetarian', allergies_injuries: '', latest_weight_kg: 72.4, latest_entry_date: date, latest_checkin_period_start: date, needs_attention: false }
 const coachRecord = { id: 'design-coach', full_name: 'Aarav Rao', email: 'aarav@example.com', professional_title: 'Strength Coach', is_active: true, created_at: `${date}T12:00:00Z`, active_client_count: 1 }
 
+function foundationPayload() {
+  return {
+    status: 'not_required',
+    schema_version: 1,
+    answers: null,
+    prefill: {
+      full_name: 'Maya Shah',
+      email: 'maya@example.com',
+    },
+    photos: {
+      front: null,
+      back: null,
+      side: null,
+      front_double_bicep: null,
+      back_double_bicep: null,
+    },
+    waiver_version: 'xform-foundation-waiver-v1',
+    attention_flags: [],
+    submitted_at: null,
+  }
+}
+
 async function mockWorkspace(page, role, { empty = false, invalidLogin = false, activation = false } = {}) {
   const errors = [], unexpected = [], requests = []
   page.on('pageerror', error => errors.push(error.message))
@@ -34,7 +56,7 @@ async function mockWorkspace(page, role, { empty = false, invalidLogin = false, 
     if (path === '/api/v1/auth/set-password') return json({ updated: true, email: data?.email })
     if (path === '/api/v1/auth/me') {
       const portal = url.searchParams.get('portal')
-      return portal && portal !== role ? route.fulfill({ status: 403, json: { error: { message: 'This account cannot access the selected portal.' } } }) : json({ id: user.id, full_name: role === 'client' ? 'Maya Shah' : role === 'coach' ? 'Aarav Rao' : 'Navaneet Deshpande', first_name: 'Maya', email: user.email, role })
+      return portal && portal !== role ? route.fulfill({ status: 403, json: { error: { message: 'This account cannot access the selected portal.' } } }) : json({ id: user.id, full_name: role === 'client' ? 'Maya Shah' : role === 'coach' ? 'Aarav Rao' : 'Navaneet Deshpande', first_name: 'Maya', email: user.email, role, ...(role === 'client' ? { foundation_intake_status: 'not_required' } : {}) })
     }
     if (path.endsWith('/profile/photo')) return json({ photo: null })
     if (path === '/api/v1/client/dashboard') return json({ client: { id: user.id, first_name: 'Maya' }, body: { current_weight_kg: body[0]?.weight_kg ?? null, latest_waist_cm: body[0]?.waist_cm ?? null, change_from_start_kg: body.length ? -3.6 : null, target_progress_percent: body.length ? 60 : null, trend: [...body].reverse() }, check_ins: { count: checkins.length, status: checkins.length ? 'submitted' : 'due' }, training_volume: { total_kg: empty ? 0 : 18240, sessions: empty ? 0 : 12, training_days: empty ? 0 : 12, best_day_kg: empty ? 0 : 2100, daily_kg: empty ? [] : [1200, 1500, 1920, 1800, 2100, 1440].map((volume_kg, i) => ({ date: `2026-09-0${i + 1}`, volume_kg })) } })
@@ -49,6 +71,10 @@ async function mockWorkspace(page, role, { empty = false, invalidLogin = false, 
     if (path.endsWith('/health-summary')) return json({ wellbeing: { energy_score: 4, sentiment: 'good' }, planning_context: { dietary_preferences: ['Vegetarian'], training_considerations: ['Steady training rhythm'], coach_note: 'Keep up your consistency.' }, safety_notice: 'Ask your health professional for clinical advice.' })
     if (path === '/api/v1/client/profile') { if (data) profile = { ...profile, ...data }; return json(profile) }
     if (path === '/api/v1/coach/clients') return json({ items: [clientRecord] })
+    if (path === '/api/v1/coach/libraries') return json({ food: [], exercises: [] })
+    if (path === '/api/v1/coach/settings') return json({ weight_unit: 'kg', default_check_in_day: 'sunday', default_missing_weight_threshold_days: 3, default_measurement_refresh_threshold_days: 14, enabled_measurements: ['weight_kg', 'waist_cm'] })
+    if (path === '/api/v1/coach/audit-events') return json({ items: [], has_more: false })
+    if (path.endsWith('/foundation-intake')) return json(foundationPayload())
     if (path.endsWith('/nutrition-plan')) return json({ active_plan: null, draft: null, food_library: [] })
     if (path.endsWith('/workout-program')) return json({ active_program: null, draft: null, exercise_library: [] })
     if (path.endsWith('/review')) return json({ client: clientRecord, body_entries: body.map(item => ({ ...item, entry_date: item.date })), checkins, progress_photos: [], photo_count: 0, private_notes: [], coaching_context: { client_visible_coach_note: 'Stay consistent.', training_considerations: [], safety_notice: '' } })

@@ -12,6 +12,41 @@ export function progressFixture() {
   }
 }
 
+function coachFoundationPayload(state) {
+  return {
+    status: 'submitted',
+    schema_version: 1,
+    answers: {
+      identity: {
+        full_name: state.profile.name,
+        date_of_birth: '1994-01-15',
+        sex: 'male',
+        mobile: '+91 98765 43210',
+        place_of_living: 'Pune, Maharashtra',
+        profession: 'Software engineer',
+      },
+      training: {
+        exercise_history: 'Consistent lifting for 2 years.',
+        current_program: state.workout.title,
+      },
+    },
+    prefill: {
+      full_name: state.profile.name,
+      email: state.profile.email,
+    },
+    photos: {
+      front: null,
+      back: null,
+      side: null,
+      front_double_bicep: null,
+      back_double_bicep: null,
+    },
+    waiver_version: 'xform-foundation-waiver-v1',
+    attention_flags: [],
+    submitted_at: '2026-09-09T10:00:00Z',
+  }
+}
+
 function history(workout) {
   return { items: workout.exercises.filter(e => e.sets.length).map(e => {
     const volume = e.sets.reduce((n, s) => n + s.reps * s.load_kg, 0), reps = e.sets.reduce((n, s) => n+s.reps, 0), load = Math.max(...e.sets.map(s => s.load_kg))
@@ -34,7 +69,7 @@ export async function mockProgress(page, role, state) {
     const jsonBody = req.headers()['content-type']?.includes('application/json') ? req.postDataJSON() : null
     state.calls.push({ path, method, body: jsonBody })
     const json = data => route.fulfill({ json: data })
-    if (path === '/api/v1/auth/me') return json({ ...user, role, full_name: role === 'client' ? state.profile.name : 'Aisha Kapoor', first_name: 'Navaneet' })
+    if (path === '/api/v1/auth/me') return json({ ...user, role, full_name: role === 'client' ? state.profile.name : 'Aisha Kapoor', first_name: 'Navaneet', ...(role === 'client' ? { foundation_intake_status: 'not_required' } : {}) })
     if (path.endsWith('/profile/photo')) return json({ photo: null })
     if (path.endsWith('/dashboard')) return json({ client: { first_name: 'Navaneet' }, body: { current_weight_kg: 78, trend: [], target_progress_percent: null }, check_ins: { count: state.checkins.length }, training_volume: { total_kg: 0, daily_kg: [], sessions: 0, training_days: 0, best_day_kg: 0 } })
     if (path.endsWith('/body-entries')) return json({ items: [] })
@@ -64,6 +99,7 @@ export async function mockProgress(page, role, state) {
     if (path.endsWith('/health-summary')) return json({ wellbeing: {}, planning_context: {} })
     if (path.endsWith('/profile')) return json(state.profile)
     if (path === '/api/v1/coach/clients') return json({ items: [{ ...state.profile, check_in_schedule: state.schedule }] })
+    if (path.endsWith('/foundation-intake')) return json(coachFoundationPayload(state))
     if (path.endsWith('/review')) return json({ client: state.profile, body_entries: [], checkins: state.checkins, progress_photos: [], photo_count: state.photos.length, coaching_context: { client_visible_coach_note: '', training_considerations: [], safety_notice: '' }, private_notes: [] })
     state.errors.push(`Unhandled ${method} ${path}`)
     return route.fulfill({ status: 501, json: { error: { message: 'Unmocked request' } } })

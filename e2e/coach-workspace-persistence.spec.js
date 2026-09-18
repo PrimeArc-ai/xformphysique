@@ -15,7 +15,8 @@ const rosterClient = {
   latest_checkin_period_start: null,
   latest_checkin_submitted_at: null,
   needs_attention: true,
-  attention_reasons: [ATTENTION_REASON],
+  foundation_intake_status: 'pending',
+  attention_reasons: [ATTENTION_REASON, 'Foundation intake pending'],
   check_in_schedule: {
     current_status: 'overdue',
     missed_count: 3,
@@ -24,6 +25,28 @@ const rosterClient = {
     next_due_on: '2026-09-16',
     timezone: 'Asia/Kolkata',
   },
+}
+
+function foundationPayload() {
+  return {
+    status: 'pending',
+    schema_version: 1,
+    answers: {},
+    prefill: {
+      full_name: 'QA Client',
+      email: 'qa-client@example.test',
+    },
+    photos: {
+      front: null,
+      back: null,
+      side: null,
+      front_double_bicep: null,
+      back_double_bicep: null,
+    },
+    waiver_version: 'xform-foundation-waiver-v1',
+    attention_flags: [],
+    submitted_at: null,
+  }
 }
 
 function workspaceFixture() {
@@ -151,6 +174,7 @@ async function mockCoachWorkspace(page, state) {
     const clientMatch = path.match(/^\/api\/v1\/coach\/clients\/([^/]+)\/(.+)$/)
     if (clientMatch) {
       const [, clientId, rest] = clientMatch
+      if (rest === 'foundation-intake' && method === 'GET') return json(foundationPayload())
       if (rest === 'review' && method === 'GET') return json(state.review)
       if (rest === 'private-notes' && method === 'POST') {
         const payload = request.postDataJSON()
@@ -199,6 +223,15 @@ test('overview attention queue shows a live reason and no LOCAL status', async (
   await expect(queue.getByText('ATTENTION QUEUE')).toBeVisible()
   await expect(queue.getByText(ATTENTION_REASON)).toBeVisible()
   await expect(queue.getByText('LOCAL')).toHaveCount(0)
+})
+
+test('clients list shows the intake pending roster chip', async ({ page }) => {
+  const state = workspaceFixture()
+  await mockCoachWorkspace(page, state)
+  await loginCoach(page)
+
+  await openNav(page, 'Clients')
+  await expect(page.getByText('Intake pending')).toBeVisible()
 })
 
 test('review draws a two-point weight trend and keeps a saved private note after reload', async ({ page }) => {
@@ -254,16 +287,16 @@ test('settings persist a missing-weight threshold of 5 after reload', async ({ p
   await expect(page.getByLabel('Missing weight threshold (days)')).toHaveValue('5')
 })
 
-test('health shows not medical advice and never blood reports', async ({ page }) => {
+test('health shows the pending foundation copy and not medical advice', async ({ page }) => {
   const state = workspaceFixture()
   await mockCoachWorkspace(page, state)
   await loginCoach(page)
 
   await openNav(page, 'Health')
   const health = page.locator('.coach-page')
+  await expect(page.getByRole('heading', { name: 'Foundation form', exact: true })).toBeVisible()
+  await expect(page.getByText('Waiting for the client to finish intake.')).toBeVisible()
   await expect(health.getByText('Not medical advice').first()).toBeVisible()
-  await expect(health.getByText('Blood reports')).toHaveCount(0)
-  await expect(page.getByText('Blood reports')).toHaveCount(0)
 })
 
 test('audit log shows a nutrition_plan_published fixture row', async ({ page }) => {

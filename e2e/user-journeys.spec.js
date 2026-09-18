@@ -1,22 +1,21 @@
+import fs from 'node:fs'
 import { expect, test } from '@playwright/test'
 
-const coach = {
-  portal: 'Coach',
-  email: required('E2E_COACH_EMAIL'),
-  password: required('E2E_COACH_PASSWORD'),
-}
+const LIVE_ENV_KEYS = [
+  'E2E_COACH_EMAIL',
+  'E2E_COACH_PASSWORD',
+  'E2E_CLIENT_NAME',
+  'E2E_CLIENT_EMAIL',
+  'E2E_CLIENT_PASSWORD',
+  'E2E_SUPABASE_URL',
+  'E2E_SUPABASE_ADMIN_KEY',
+]
 
-const client = {
-  portal: 'Client',
-  name: required('E2E_CLIENT_NAME'),
-  email: required('E2E_CLIENT_EMAIL'),
-  password: required('E2E_CLIENT_PASSWORD'),
-}
+const FOUNDATION_ANSWERS = JSON.parse(
+  fs.readFileSync(new URL('../backend/tests/fixtures/foundation_submit_valid.json', import.meta.url), 'utf8'),
+)
 
-const supabase = {
-  url: required('E2E_SUPABASE_URL'),
-  adminKey: required('E2E_SUPABASE_ADMIN_KEY'),
-}
+const liveTest = hasLiveEnv() ? test : test.skip
 
 const onePixelPng = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGMQEpMEAAB/AEKRt5ikAAAAAElFTkSuQmCC',
@@ -27,6 +26,34 @@ function required(name) {
   const value = process.env[name]
   if (!value) throw new Error(`${name} must be set before running the live journey test.`)
   return value
+}
+
+function hasLiveEnv() {
+  return LIVE_ENV_KEYS.every((name) => Boolean(process.env[name]))
+}
+
+function coachIdentity() {
+  return {
+    portal: 'Coach',
+    email: required('E2E_COACH_EMAIL'),
+    password: required('E2E_COACH_PASSWORD'),
+  }
+}
+
+function clientIdentity() {
+  return {
+    portal: 'Client',
+    name: required('E2E_CLIENT_NAME'),
+    email: required('E2E_CLIENT_EMAIL'),
+    password: required('E2E_CLIENT_PASSWORD'),
+  }
+}
+
+function supabaseConfig() {
+  return {
+    url: required('E2E_SUPABASE_URL'),
+    adminKey: required('E2E_SUPABASE_ADMIN_KEY'),
+  }
 }
 
 async function signIn(page, identity) {
@@ -44,6 +71,8 @@ async function signOut(page) {
 }
 
 async function activateInvitedClient(clientId) {
+  const supabase = supabaseConfig()
+  const client = clientIdentity()
   const response = await fetch(`${supabase.url}/auth/v1/admin/users/${clientId}`, {
     method: 'PUT',
     headers: {
@@ -65,7 +94,77 @@ async function activateInvitedClient(clientId) {
   if (!response.ok) throw new Error(`Unable to activate the invited test client (${response.status}).`)
 }
 
-test('coach onboarding and client-to-coach progress review', async ({ page }) => {
+async function readClientSessionToken(page) {
+  return page.evaluate(() => {
+    const key = Object.keys(window.localStorage).find((name) => /^sb-.*-auth-token$/.test(name))
+    if (!key) return null
+    try {
+      const parsed = JSON.parse(window.localStorage.getItem(key) || 'null')
+      return parsed?.access_token
+        || parsed?.currentSession?.access_token
+        || parsed?.session?.access_token
+        || parsed?.current_session?.access_token
+        || null
+    } catch {
+      return null
+    }
+  })
+}
+
+async function requestClientTokenByPassword() {
+  const supabase = supabaseConfig()
+  const client = clientIdentity()
+  const response = await fetch(`${supabase.url}/auth/v1/token?grant_type=password`, {
+    method: 'POST',
+    headers: {
+      apikey: supabase.adminKey,
+      Authorization: `Bearer ${supabase.adminKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      email: client.email,
+      password: client.password,
+    }),
+  })
+  if (!response.ok) throw new Error(`Unable to create a client session for foundation submit (${response.status}).`)
+  const payload = await response.json()
+  return payload.access_token
+}
+
+async function completeFoundationViaApi(page) {
+  const origin = new URL(page.url()).origin
+  const token = await readClientSessionToken(page) || await requestClientTokenByPassword()
+
+  for (const view of ['front', 'back', 'side', 'front_double_bicep', 'back_double_bicep']) {
+    const form = new FormData()
+    form.set('file', new Blob([onePixelPng], { type: 'image/png' }), `${view}.png`)
+    form.set('view', view)
+    form.set('captured_on', new Date().toISOString().slice(0, 10))
+    const photoResponse = await fetch(`${origin}/api/v1/client/progress-photos`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: form,
+    })
+    if (!photoResponse.ok) throw new Error(`foundation photo upload failed ${photoResponse.status}`)
+  }
+
+  const response = await fetch(`${origin}/api/v1/client/foundation-intake/submit`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      answers: FOUNDATION_ANSWERS,
+      waiver_version: 'xform-foundation-waiver-v1',
+    }),
+  })
+  if (!response.ok) throw new Error(`foundation submit failed ${response.status}`)
+}
+
+liveTest('coach onboarding and client-to-coach progress review', async ({ page }) => {
+  const coach = coachIdentity()
+  const client = clientIdentity()
   await signIn(page, coach)
   await expect(page.getByRole('heading', { name: 'Command Center' })).toBeVisible()
 
@@ -102,7 +201,13 @@ test('coach onboarding and client-to-coach progress review', async ({ page }) =>
   await signOut(page)
 
   await signIn(page, client)
+  if (await page.getByRole('heading', { name: /Foundation form/i }).count()) {
+    await expect(page.getByRole('heading', { name: /Foundation form/i })).toBeVisible()
+    await completeFoundationViaApi(page)
+    await page.reload()
+  }
   await expect(page.getByRole('heading', { name: new RegExp(`Hello, ${client.name.split(' ')[0]}`) })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Dashboard' })).toBeVisible()
 
   await page.getByRole('button', { name: 'Nutrition', exact: true }).first().click()
   await expect(page.getByRole('heading', { name: 'Nutrition plan pending.' })).toBeVisible()
@@ -165,6 +270,9 @@ test('coach onboarding and client-to-coach progress review', async ({ page }) =>
   await expect(page.getByText('72.4 kg').first()).toBeVisible()
   await expect(page.getByText(/Completed three strength sessions/)).toBeVisible()
   await expect(page.getByRole('img', { name: /front progress photo/i }).first()).toBeVisible()
+  await page.getByRole('button', { name: 'Health', exact: true }).first().click()
+  await expect(page.getByRole('heading', { name: 'Foundation form', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Review', exact: true }).first().click()
 
   await page.getByLabel('Coach note').fill('Strong first week. Keep the same meal structure and steady training rhythm.')
   await page.getByLabel('Training considerations').fill('Monitor right knee comfort\nKeep walking volume gradual')
