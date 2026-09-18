@@ -8,7 +8,8 @@ from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.errors import APIError
-from app.services.progress import local_today, schedule, exercise_history
+from app.services.foundation_catalog import WAIVER_VERSION
+from app.services.progress import PHOTO_VIEWS, exercise_history, local_today, schedule
 from app.models.client import (
     BodyEntry,
     CheckIn,
@@ -445,6 +446,36 @@ class ClientService:
                 if field not in {"client_id", "name", "email"}
             },
         }
+
+    def get_foundation_intake(self) -> dict[str, Any]:
+        client = self._client()
+        return {
+            "status": "not_required",
+            "schema_version": 1,
+            "answers": None,
+            "prefill": {
+                "full_name": client.name,
+                "email": client.email,
+            },
+            "photos": {view: None for view in PHOTO_VIEWS},
+            "waiver_version": WAIVER_VERSION,
+            "attention_flags": [],
+            "submitted_at": None,
+        }
+
+    def save_foundation_intake_draft(self, _: dict[str, Any]) -> dict[str, Any]:
+        raise APIError(
+            409,
+            "foundation_intake_locked",
+            "Foundation intake is locked and can no longer be edited",
+        )
+
+    def submit_foundation_intake(self, _: dict[str, Any], __: str) -> dict[str, Any]:
+        raise APIError(
+            409,
+            "foundation_intake_locked",
+            "Foundation intake is locked and can no longer be edited",
+        )
 
     def _client(self) -> Client:
         client = self.db.get(Client, self.client_id)

@@ -180,6 +180,39 @@ class PhotoResponse(BaseModel):
     cleanup_pending: bool = False
 
 
+class FoundationIntakePrefill(APIModel):
+    full_name: str
+    email: str
+
+
+class FoundationPhotoSlotsResponse(APIModel):
+    front: PhotoResponse | None = None
+    back: PhotoResponse | None = None
+    side: PhotoResponse | None = None
+    front_double_bicep: PhotoResponse | None = None
+    back_double_bicep: PhotoResponse | None = None
+
+
+class FoundationIntakeResponse(APIModel):
+    status: Literal["pending", "submitted", "not_required"]
+    schema_version: int
+    answers: dict[str, Any] | None
+    prefill: FoundationIntakePrefill
+    photos: FoundationPhotoSlotsResponse
+    waiver_version: str
+    attention_flags: list[str] = Field(default_factory=list)
+    submitted_at: datetime | None = None
+
+
+class FoundationDraftBody(APIModel):
+    answers: dict[str, Any]
+
+
+class FoundationSubmitBody(APIModel):
+    answers: dict[str, Any]
+    waiver_version: str
+
+
 class ProgressPhotosResponse(BaseModel):
     items: list[PhotoResponse]
     has_more: bool = False

@@ -18,6 +18,9 @@ from app.schemas.client import (
     CheckInUpsert,
     DashboardResponse,
     ErrorResponse,
+    FoundationDraftBody,
+    FoundationIntakeResponse,
+    FoundationSubmitBody,
     HealthSummaryResponse,
     MealAdherenceResponse,
     MealAdherenceUpsert,
@@ -34,6 +37,7 @@ from app.schemas.client import (
     WorkoutSessionUpdate,
 )
 from app.services.client import ClientService
+from app.services.foundation_intake import FoundationIntakeService
 from app.services.photo_storage import LocalPhotoStorage
 from app.services.profile_photo import ProfilePhotoService
 from app.schemas.profile_photo import ProfilePhotoResponse
@@ -139,6 +143,28 @@ def get_progress_photo_content(photo_id: str, service: Service):
     photo = service.get_photo(photo_id)
     path = LocalPhotoStorage().path_for(photo.storage_key)
     return FileResponse(path, media_type=photo.content_type, filename=photo.file_name)
+
+
+@router.get("/foundation-intake", response_model=FoundationIntakeResponse, responses=ERROR_RESPONSES)
+def get_foundation_intake(service: Service):
+    return FoundationIntakeService.from_client(service).get_intake()
+
+
+@router.patch("/foundation-intake", response_model=FoundationIntakeResponse, responses=ERROR_RESPONSES)
+def save_foundation_intake(payload: FoundationDraftBody, service: Service):
+    return FoundationIntakeService.from_client(service).save_draft(payload.answers)
+
+
+@router.post(
+    "/foundation-intake/submit",
+    response_model=FoundationIntakeResponse,
+    responses=ERROR_RESPONSES,
+)
+def submit_foundation_intake(payload: FoundationSubmitBody, service: Service):
+    return FoundationIntakeService.from_client(service).submit(
+        payload.answers,
+        payload.waiver_version,
+    )
 
 
 @router.get("/nutrition/active-plan", response_model=NutritionPlanResponse, responses=ERROR_RESPONSES)
