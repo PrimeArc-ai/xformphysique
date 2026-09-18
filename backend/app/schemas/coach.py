@@ -56,6 +56,7 @@ class CoachClientListItem(BaseModel):
     primary_goal: str
     check_in_day: Weekday
     timezone: str
+    foundation_intake_status: Literal["not_required", "pending", "submitted"]
     latest_weight_kg: float | None
     latest_entry_date: date | None
     latest_checkin_period_start: date | None

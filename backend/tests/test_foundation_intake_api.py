@@ -8,6 +8,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from app.api import deps as api_deps
+from app.api.v1.auth import get_current_workspace
 from fastapi.testclient import TestClient
 
 from app.core.config import Settings, get_settings
@@ -484,6 +485,83 @@ def test_sqlite_returns_not_required_and_locks_writes(tmp_path) -> None:
         assert submit_error.value.code == "foundation_intake_locked"
 
 
+def test_workspace_includes_client_foundation_status(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        SupabaseClientService,
+        "_profile_row",
+        lambda self: {
+            "id": CLIENT_ID,
+            "role": "client",
+            "first_name": "Taylor",
+            "full_name": "Taylor Example",
+            "email": "client@example.test",
+        },
+    )
+    monkeypatch.setattr(
+        SupabaseClientService,
+        "_one_or_none",
+        lambda self, table, params: {
+            "id": CLIENT_ID,
+            "foundation_intake_status": "pending",
+        }
+        if table == "clients"
+        else None,
+    )
+
+    workspace = SupabaseClientService(settings(), client_user()).workspace()
+
+    assert workspace["role"] == "client"
+    assert workspace["foundation_intake_status"] == "pending"
+
+
+def test_workspace_defaults_client_foundation_status_to_not_required(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        SupabaseClientService,
+        "_profile_row",
+        lambda self: {
+            "id": CLIENT_ID,
+            "role": "client",
+            "first_name": "Taylor",
+            "full_name": "Taylor Example",
+            "email": "client@example.test",
+        },
+    )
+    monkeypatch.setattr(
+        SupabaseClientService,
+        "_one_or_none",
+        lambda self, table, params: {"id": CLIENT_ID} if table == "clients" else None,
+    )
+
+    workspace = SupabaseClientService(settings(), client_user()).workspace()
+
+    assert workspace["foundation_intake_status"] == "not_required"
+
+
+def test_local_demo_me_client_returns_not_required_foundation_status() -> None:
+    workspace = get_current_workspace(
+        portal="client",
+        settings=Settings(_env_file=None),
+        user=client_user(),
+    )
+
+    assert workspace["role"] == "client"
+    assert workspace["foundation_intake_status"] == "not_required"
+
+
+@pytest.mark.parametrize("portal", ["coach", "admin"])
+def test_local_demo_me_non_clients_do_not_get_fake_foundation_pending(portal: str) -> None:
+    workspace = get_current_workspace(
+        portal=portal,
+        settings=Settings(_env_file=None),
+        user=client_user(),
+    )
+
+    assert workspace["role"] == portal
+    assert "foundation_intake_status" not in workspace
+
+
 def test_openapi_includes_foundation_intake_routes() -> None:
     paths = app.openapi()["paths"]
     base = "/api/v1/client/foundation-intake"
@@ -491,6 +569,12 @@ def test_openapi_includes_foundation_intake_routes() -> None:
     assert "get" in paths[base]
     assert "patch" in paths[base]
     assert "post" in paths[f"{base}/submit"]
+
+
+def test_openapi_includes_coach_foundation_intake_route() -> None:
+    paths = app.openapi()["paths"]
+
+    assert "get" in paths["/api/v1/coach/clients/{client_id}/foundation-intake"]
 
 
 @pytest.mark.parametrize(

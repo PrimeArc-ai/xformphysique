@@ -5,7 +5,13 @@ from fastapi.responses import Response
 
 from app.core.config import Settings, get_settings
 from app.core.supabase import AuthenticatedUser, get_authenticated_user
-from app.schemas.client import ErrorResponse, WeeklyFeedback, CheckInsResponse, ProgressPhotosResponse
+from app.schemas.client import (
+    CheckInsResponse,
+    ErrorResponse,
+    FoundationIntakeResponse,
+    ProgressPhotosResponse,
+    WeeklyFeedback,
+)
 from app.schemas.coach import (
     AuditEventList,
     ClientCoachingContextResponse,
@@ -75,6 +81,19 @@ def weekly_feedback(client_id: str, checkin_id: str, payload: WeeklyFeedback,
 @router.get("/clients/{client_id}/workout-history")
 def workout_history(client_id: str, settings: Settings = Depends(get_settings), user: AuthenticatedUser = Depends(get_authenticated_user)):
     return SupabaseCoachService(settings, user).progress_service(client_id).workout_history()
+
+
+@router.get(
+    "/clients/{client_id}/foundation-intake",
+    response_model=FoundationIntakeResponse,
+    responses=ERROR_RESPONSES,
+)
+def client_foundation_intake(
+    client_id: str,
+    settings: Settings = Depends(get_settings),
+    user: AuthenticatedUser = Depends(get_authenticated_user),
+):
+    return SupabaseCoachService(settings, user).get_foundation_intake(client_id)
 
 
 @router.get("/clients/{client_id}/progress-photos", response_model=ProgressPhotosResponse)

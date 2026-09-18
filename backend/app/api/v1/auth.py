@@ -42,7 +42,10 @@ def get_current_workspace(
             "admin": ("Navaneet", "Navaneet Deshpande", "admin@xform.local", "local-demo-admin"),
         }
         first_name, full_name, email, identity = names[role]
-        return {"id": identity, "email": email, "first_name": first_name, "full_name": full_name, "role": role}
+        workspace = {"id": identity, "email": email, "first_name": first_name, "full_name": full_name, "role": role}
+        if role == "client":
+            workspace["foundation_intake_status"] = "not_required"
+        return workspace
 
     workspace = SupabaseClientService(settings=settings, user=user).workspace()
     if portal and workspace["role"] != portal:

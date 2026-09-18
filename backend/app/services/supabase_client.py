@@ -47,13 +47,19 @@ class SupabaseClientService:
             coach = self._one_or_none("coaches", {"id": f"eq.{self.user.id}"})
             if not coach or not coach.get("is_active"):
                 raise APIError(403, "coach_inactive", "Your coach access has been suspended. Contact your administrator.")
-        return {
+        workspace = {
             "id": profile["id"],
             "email": profile.get("email") or self.user.email,
             "first_name": profile["first_name"],
             "full_name": profile["full_name"],
             "role": profile["role"],
         }
+        if profile["role"] == "client":
+            client = self._one_or_none("clients", {"id": f"eq.{self.client_id}"})
+            if client is None:
+                raise APIError(403, "client_role_required", "Client workspace access is required")
+            workspace["foundation_intake_status"] = client.get("foundation_intake_status") or "not_required"
+        return workspace
 
     def foundation_intake_status(self) -> str:
         client = self._one_or_none("clients", {"id": f"eq.{self.client_id}"})

@@ -19,6 +19,7 @@ from app.schemas.coach import (
     FoodLibraryUpdate,
     PrivateNoteCreate,
 )
+from app.services.foundation_intake import FoundationIntakeService
 from app.services.r2_photo_storage import R2PhotoStorage
 from app.services.progress import schedule
 
@@ -162,6 +163,11 @@ class SupabaseCoachService:
             "private_notes": [self._private_note(item) for item in private_notes],
             "setup": self._client_setup(client_id, client),
         }
+
+    def get_foundation_intake(self, client_id: str) -> dict[str, Any]:
+        """Return one assigned client's foundation intake payload."""
+
+        return FoundationIntakeService.from_client(self.progress_service(client_id)).get_intake()
 
     def get_client_progress_photo_content(self, client_id: str, photo_id: str) -> tuple[bytes, str, str]:
         """Return bytes only after confirming this coach still owns the client assignment."""
@@ -590,6 +596,7 @@ class SupabaseCoachService:
                 "timezone": payload.timezone,
                 "dietary_preferences": payload.dietary_preferences,
                 "allergies_injuries": payload.allergies_injuries,
+                "foundation_intake_status": "pending",
             },
             params={"id": f"eq.{client_id}"},
         )
@@ -611,6 +618,12 @@ class SupabaseCoachService:
             "POST",
             "coach_client_assignments",
             {"coach_id": self.user.id, "client_id": client_id, "assigned_by": self.user.id},
+        )
+        self._admin_write(
+            admin,
+            "POST",
+            "client_foundation_intakes",
+            {"client_id": client_id},
         )
         if payload.target_weight_kg is not None:
             self._admin_write(
@@ -755,7 +768,10 @@ class SupabaseCoachService:
             attention_reasons.append("Weekly check-in overdue")
         if consecutive_missed >= 3:
             attention_reasons.append(f"{consecutive_missed} consecutive missed check-ins")
-        needs_attention = stale_weight or overdue or consecutive_missed >= 3
+        foundation_status = client.get("foundation_intake_status") or "not_required"
+        if foundation_status == "pending":
+            attention_reasons.append("Foundation intake pending")
+        needs_attention = stale_weight or overdue or consecutive_missed >= 3 or foundation_status == "pending"
         return {
             "id": client["id"],
             "client_code": client["client_code"],
@@ -763,6 +779,7 @@ class SupabaseCoachService:
             "primary_goal": client["primary_goal"],
             "check_in_day": client["check_in_day"],
             "timezone": client["timezone"],
+            "foundation_intake_status": foundation_status,
             "latest_weight_kg": self._number(latest_entry.get("weight_kg")) if latest_entry else None,
             "latest_entry_date": entry_date,
             "latest_checkin_period_start": latest_checkin.get("period_start") if latest_checkin else None,
