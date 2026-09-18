@@ -73,7 +73,7 @@ EXPECTED_OPTION_COUNTS = {
     "gut_digestive": 4,
     "thyroid_autoimmune": 2,
     "mental_cognitive": 3,
-    "hormonal_health": 1,
+    "hormonal_health": 20,
     "allergy_environmental": 11,
     "skin_hair": 11,
     "pain_inflammation": 3,
@@ -143,6 +143,11 @@ def test_each_group_has_none_and_unique_ids() -> None:
         assert "none" in ids, key
         assert len(ids) == len(set(ids)), key
         assert all(item["label"] and "(" not in item["label"] for item in options)
+
+
+def test_required_groups_include_at_least_one_real_option() -> None:
+    for key in REQUIRED_GROUPS:
+        assert len(CHECKLIST_GROUPS[key]) > 1, key
 
 
 def test_valid_fixture_parses_for_male() -> None:

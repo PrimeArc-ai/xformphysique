@@ -803,7 +803,10 @@ CHECKLIST_GROUPS = {
     "gut_digestive": _build_options(SECTION_114_GUT_DIGESTIVE),
     "thyroid_autoimmune": _build_options(SECTION_114_THYROID_AUTOIMMUNE),
     "mental_cognitive": _build_options(SECTION_114_MENTAL_COGNITIVE),
-    "hormonal_health": _build_options(),
+    "hormonal_health": _build_options(
+        SECTION_116_ENDOCRINE_SIGNALS,
+        SECTION_140_HORMONAL_SYMPTOMS,
+    ),
     "allergy_environmental": _build_options(
         SECTION_114_ALLERGY_ENVIRONMENTAL,
         SECTION_150_ALLERGY_ENVIRONMENT,
