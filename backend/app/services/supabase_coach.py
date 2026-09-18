@@ -596,7 +596,6 @@ class SupabaseCoachService:
                 "timezone": payload.timezone,
                 "dietary_preferences": payload.dietary_preferences,
                 "allergies_injuries": payload.allergies_injuries,
-                "foundation_intake_status": "pending",
             },
             params={"id": f"eq.{client_id}"},
         )
@@ -619,12 +618,11 @@ class SupabaseCoachService:
             "coach_client_assignments",
             {"coach_id": self.user.id, "client_id": client_id, "assigned_by": self.user.id},
         )
-        self._admin_write(
-            admin,
+        self.gateway.request(
             "POST",
-            "client_foundation_intakes",
-            {"client_id": client_id},
-        )
+            "/rest/v1/rpc/provision_foundation_intake",
+            json={"p_client_id": client_id},
+        ).json()
         if payload.target_weight_kg is not None:
             self._admin_write(
                 admin,

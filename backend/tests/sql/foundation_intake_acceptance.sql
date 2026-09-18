@@ -47,6 +47,9 @@ where id in (
 insert into public.coach_client_assignments(coach_id, client_id)
 values ('80000000-0000-0000-0000-000000000001', '80000000-0000-0000-0000-000000000002');
 
+insert into public.coach_client_assignments(coach_id, client_id)
+values ('80000000-0000-0000-0000-000000000001', '80000000-0000-0000-0000-000000000006');
+
 create or replace function pg_temp.assert_true(value boolean, message text)
 returns void
 language plpgsql
@@ -72,9 +75,63 @@ select pg_temp.assert_true(
 
 select pg_temp.assert_true(
   (select foundation_intake_status from public.clients
-    where id = '80000000-0000-0000-0000-000000000006') = 'not_required',
+    where id = '80000000-0000-0000-0000-000000000005') = 'not_required',
   'existing clients stay not_required'
 );
+
+select set_config('request.jwt.claim.sub', '80000000-0000-0000-0000-000000000001', true);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+set role authenticated;
+
+select public.provision_foundation_intake('80000000-0000-0000-0000-000000000006');
+
+select pg_temp.assert_true(
+  (select foundation_intake_status from public.clients
+    where id = '80000000-0000-0000-0000-000000000006') = 'pending',
+  'assigned coach rpc sets pending status'
+);
+
+select pg_temp.assert_true(
+  (select count(*) from public.client_foundation_intakes
+    where client_id = '80000000-0000-0000-0000-000000000006') = 1,
+  'assigned coach rpc provisions intake row'
+);
+
+reset role;
+select set_config('request.jwt.claim.sub', '80000000-0000-0000-0000-000000000004', true);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+set role authenticated;
+
+do $$
+begin
+  begin
+    perform public.provision_foundation_intake('80000000-0000-0000-0000-000000000006');
+    raise exception 'unassigned coach provision should fail';
+  exception
+    when insufficient_privilege then
+      null;
+  end;
+end
+$$;
+
+reset role;
+select set_config('request.jwt.claim.sub', '80000000-0000-0000-0000-000000000007', true);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+set role authenticated;
+
+do $$
+begin
+  begin
+    perform public.provision_foundation_intake('80000000-0000-0000-0000-000000000006');
+    raise exception 'admin provision should fail';
+  exception
+    when insufficient_privilege then
+      null;
+  end;
+end
+$$;
+
+reset role;
 
 update public.clients
 set foundation_intake_status = 'pending'

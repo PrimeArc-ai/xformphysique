@@ -78,13 +78,15 @@ def test_coach_invitation_provisions_owned_client(monkeypatch: pytest.MonkeyPatc
         for method, path, kwargs in requests
         if method == "PATCH" and path.endswith("/rest/v1/clients")
     )
-    assert client_patch["foundation_intake_status"] == "pending"
-    intake_insert = next(
-        kwargs["json"]
+    assert "foundation_intake_status" not in client_patch
+    provision_call = next(
+        kwargs
         for method, path, kwargs in requests
-        if method == "POST" and path.endswith("/rest/v1/client_foundation_intakes")
+        if method == "POST" and path.endswith("/rest/v1/rpc/provision_foundation_intake")
     )
-    assert intake_insert == {"client_id": "client-id"}
+    assert provision_call["headers"]["Authorization"] == "Bearer coach-jwt"
+    assert provision_call["json"] == {"p_client_id": "client-id"}
+    assert not any(path.endswith("/rest/v1/client_foundation_intakes") for path in paths)
     assert any(path.endswith("/rest/v1/audit_events") for path in paths)
 
 

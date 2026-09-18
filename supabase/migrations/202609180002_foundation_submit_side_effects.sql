@@ -1,3 +1,31 @@
+create or replace function public.provision_foundation_intake(
+  p_client_id uuid
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null or not public.can_manage_client(p_client_id) then
+    raise exception using errcode = '42501', message = 'client management required';
+  end if;
+
+  update public.clients
+  set foundation_intake_status = 'pending'
+  where id = p_client_id;
+
+  insert into public.client_foundation_intakes(client_id)
+  values (p_client_id)
+  on conflict (client_id) do nothing;
+
+  return jsonb_build_object(
+    'client_id', p_client_id,
+    'status', 'pending'
+  );
+end
+$$;
+
 create or replace function public.submit_foundation_intake(
   p_answers jsonb,
   p_waiver_version text
@@ -187,8 +215,12 @@ begin
 end
 $$;
 
+revoke all on function public.provision_foundation_intake(uuid)
+  from public, anon, service_role;
 revoke all on function public.submit_foundation_intake(jsonb, text)
   from public, anon;
+grant execute on function public.provision_foundation_intake(uuid)
+  to authenticated;
 grant execute on function public.submit_foundation_intake(jsonb, text)
   to authenticated;
 
