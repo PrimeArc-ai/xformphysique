@@ -422,7 +422,6 @@ class FoundationAnswers(FoundationAPIModel):
                 "pregnant",
                 "birth_control",
                 "last_cycle_start",
-                "last_cycle_unknown",
                 "cycle_energy_drops",
                 "periods_regular",
                 "perimenopause",

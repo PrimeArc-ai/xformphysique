@@ -62,7 +62,12 @@ async function signIn(page, identity) {
   await page.getByRole('radio', { name: identity.portal, exact: true }).check()
   await page.getByLabel('Email').fill(identity.email)
   await page.getByLabel('Password').fill(identity.password)
+  const workspaceResponse = page.waitForResponse((response) => (
+    response.url().includes('/api/v1/auth/me')
+    && response.request().method() === 'GET'
+  ))
   await page.getByRole('button', { name: 'Sign In' }).click()
+  await workspaceResponse
 }
 
 async function signOut(page) {

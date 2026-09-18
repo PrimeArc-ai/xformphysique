@@ -78,6 +78,21 @@ begin
     raise exception using errcode = '22023', message = 'foundation waiver required';
   end if;
 
+  if p_answers is null
+    or jsonb_typeof(p_answers) <> 'object'
+    or not (p_answers ? 'identity')
+  then
+    raise exception using errcode = '22023', message = 'foundation answers identity required';
+  end if;
+
+  if p_answers -> 'waiver' ->> 'accepted' is distinct from 'true' then
+    raise exception using errcode = '22023', message = 'foundation waiver required';
+  end if;
+
+  if pg_column_size(p_answers) > 131072 then
+    raise exception using errcode = '22023', message = 'foundation answers too large';
+  end if;
+
   select count(distinct p.view)
   into v_photo_count
   from public.progress_photos p

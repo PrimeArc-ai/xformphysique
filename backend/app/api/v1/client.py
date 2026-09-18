@@ -228,6 +228,7 @@ def update_profile(payload: ProfileUpdate, service: Service):
 
 @router.get("/profile/photo", response_model=ProfilePhotoResponse, responses=ERROR_RESPONSES)
 def get_profile_photo(
+    _service: Service,
     settings: Settings = Depends(get_settings),
     user: AuthenticatedUser = Depends(get_authenticated_user),
 ):
@@ -238,6 +239,7 @@ def get_profile_photo(
 
 @router.post("/profile/photo", response_model=ProfilePhotoResponse, responses=ERROR_RESPONSES)
 async def upload_profile_photo(
+    _service: Service,
     file: UploadFile = File(description="JPEG, PNG or WebP image up to 2 MB"),
     settings: Settings = Depends(get_settings),
     user: AuthenticatedUser = Depends(get_authenticated_user),
@@ -253,6 +255,7 @@ async def upload_profile_photo(
 
 @router.get("/profile/photo/content", responses={404: {"model": ErrorResponse}})
 def get_profile_photo_content(
+    _service: Service,
     settings: Settings = Depends(get_settings),
     user: AuthenticatedUser = Depends(get_authenticated_user),
 ):

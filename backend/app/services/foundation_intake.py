@@ -24,13 +24,13 @@ def _week_start(value: date) -> date:
     return value - timedelta(days=value.weekday())
 
 
-def _photo_payload(row: dict[str, Any]) -> dict[str, Any]:
+def _photo_payload(row: dict[str, Any], content_url_prefix: str) -> dict[str, Any]:
     return {
         "id": row["id"],
         "view": row["view"],
         "captured_on": row["captured_on"],
         "file_name": row["original_filename"],
-        "content_url": f"/api/v1/client/progress-photos/{row['id']}/content",
+        "content_url": f"{content_url_prefix}/{row['id']}/content",
         "period_start": _week_start(date.fromisoformat(row["captured_on"])).isoformat(),
         "uploaded_at": row.get("created_at"),
     }
@@ -151,6 +151,11 @@ class FoundationIntakeService:
 
     def _photo_slots(self) -> dict[str, dict[str, Any] | None]:
         service = self._supabase()
+        content_url_prefix = (
+            "/api/v1/client/progress-photos"
+            if service.user.id == service.client_id
+            else f"/api/v1/coach/clients/{service.client_id}/progress-photos"
+        )
         rows = service._rows(
             "progress_photos",
             {
@@ -164,7 +169,7 @@ class FoundationIntakeService:
         for row in rows:
             view = row.get("view")
             if view in slots and slots[view] is None:
-                slots[view] = _photo_payload(row)
+                slots[view] = _photo_payload(row, content_url_prefix)
         return slots
 
     def _rpc(self, path: str, payload: dict[str, Any]) -> None:

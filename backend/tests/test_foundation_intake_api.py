@@ -268,6 +268,34 @@ def test_valid_fixtures_parse() -> None:
     FoundationAnswers.model_validate(valid_submit_answers("male"))
 
 
+def test_patch_accepts_compact_partial_draft(client_app: TestClient) -> None:
+    response = client_app.patch(
+        "/api/v1/client/foundation-intake",
+        headers=AUTH_HEADERS,
+        json={"answers": {"identity": {"full_name": "Taylor Example"}}},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["answers"] == {"identity": {"full_name": "Taylor Example"}}
+
+
+def test_female_submit_accepts_cycle_date_without_unknown_flag() -> None:
+    answers = valid_submit_answers("female")
+    answers["sex_specific"].pop("last_cycle_unknown", None)
+    answers["sex_specific"]["last_cycle_start"] = "2026-09-01"
+
+    FoundationAnswers.model_validate(answers)
+
+
+def test_female_submit_rejects_cycle_date_with_unknown_flag() -> None:
+    answers = valid_submit_answers("female")
+    answers["sex_specific"]["last_cycle_start"] = "2026-09-01"
+    answers["sex_specific"]["last_cycle_unknown"] = True
+
+    with pytest.raises(ValueError, match="cannot set last_cycle_start"):
+        FoundationAnswers.model_validate(answers)
+
+
 def test_get_returns_pending_payload(monkeypatch: pytest.MonkeyPatch) -> None:
     seen: list[tuple[str, str, dict]] = []
     stored_answers = valid_submit_answers("female")
@@ -351,6 +379,41 @@ def test_get_omits_catalog_for_coach_scoped_reads(
 
     assert payload["status"] == "pending"
     assert payload["catalog"] is None
+
+
+def test_coach_scoped_get_uses_coach_photo_content_urls(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def request(method: str, url: str, **kwargs):
+        if url.endswith("/rest/v1/clients"):
+            return FakeResponse(200, [{"id": "assigned-client", "foundation_intake_status": "submitted"}])
+        if url.endswith("/rest/v1/profiles"):
+            return FakeResponse(
+                200,
+                [
+                    {
+                        "id": "assigned-client",
+                        "role": "client",
+                        "full_name": "Taylor Example",
+                        "email": "client@example.test",
+                    }
+                ],
+            )
+        if url.endswith("/rest/v1/client_foundation_intakes"):
+            return FakeResponse(200, [intake_row(status="submitted")])
+        if url.endswith("/rest/v1/progress_photos"):
+            return FakeResponse(200, [photo_row("front", photo_id="coach-front")])
+        raise AssertionError(url)
+
+    monkeypatch.setattr(httpx, "request", request)
+    service = SupabaseClientService(settings(), client_user())
+    service.client_id = "assigned-client"
+
+    payload = FoundationIntakeService.from_client(service).get_intake()
+
+    assert payload["photos"]["front"]["content_url"] == (
+        "/api/v1/coach/clients/assigned-client/progress-photos/coach-front/content"
+    )
 
 
 def test_save_draft_uses_caller_jwt_and_rpc(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -623,6 +686,8 @@ def test_openapi_includes_coach_foundation_intake_route() -> None:
         "/api/v1/client/dashboard",
         "/api/v1/client/health-summary",
         "/api/v1/client/profile",
+        "/api/v1/client/profile/photo",
+        "/api/v1/client/profile/photo/content",
         "/api/v1/client/nutrition/active-plan?date=2026-09-18",
         "/api/v1/client/workout-sessions/today?date=2026-09-18",
     ],

@@ -198,6 +198,18 @@ select pg_temp.assert_true(
   'owner can draft'
 );
 
+do $$
+begin
+  begin
+    perform public.submit_foundation_intake('{}'::jsonb, 'xform-foundation-waiver-v1');
+    raise exception 'empty foundation submit should fail';
+  exception
+    when invalid_parameter_value then
+      null;
+  end;
+end
+$$;
+
 select pg_temp.assert_true(
   (public.submit_foundation_intake(
     pg_temp.foundation_submit_answers(),

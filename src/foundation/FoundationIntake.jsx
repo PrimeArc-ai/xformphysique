@@ -584,6 +584,27 @@ function normalizeAnswers(answers) {
   return normalized
 }
 
+function compactDraftValue(value) {
+  if (value === '') return undefined
+  if (Array.isArray(value)) {
+    const compacted = value.map(compactDraftValue).filter((item) => item !== undefined)
+    return compacted.length ? compacted : undefined
+  }
+  if (value && typeof value === 'object') {
+    const compacted = Object.fromEntries(
+      Object.entries(value)
+        .map(([key, item]) => [key, compactDraftValue(item)])
+        .filter(([, item]) => item !== undefined),
+    )
+    return Object.keys(compacted).length ? compacted : undefined
+  }
+  return value
+}
+
+function normalizeDraftAnswers(answers) {
+  return compactDraftValue(normalizeAnswers(answers)) || {}
+}
+
 function bodyFatChoices(sex) {
   if (sex === 'female') return BODY_FAT_OPTIONS.female
   if (sex === 'male') return BODY_FAT_OPTIONS.male
@@ -768,7 +789,7 @@ export default function FoundationIntake({ auth }) {
     setSaving(true)
     setError('')
     try {
-      const payload = await clientApi.saveFoundationDraft(normalizeAnswers(nextAnswers))
+      const payload = await clientApi.saveFoundationDraft(normalizeDraftAnswers(nextAnswers))
       setAnswers(mergePrefill(payload.prefill, payload.answers))
       if (payload.catalog) setCatalog(payload.catalog)
       setSaveMessage(message)

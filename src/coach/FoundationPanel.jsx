@@ -470,9 +470,13 @@ async function hydratePhotoSlots(slots, accessToken) {
       next[view] = null
       continue
     }
-    next[view] = {
-      ...photo,
-      preview_url: await coachApi.getPrivatePhotoUrl(photo.content_url, accessToken),
+    try {
+      next[view] = {
+        ...photo,
+        preview_url: await coachApi.getPrivatePhotoUrl(photo.content_url, accessToken),
+      }
+    } catch {
+      next[view] = null
     }
   }
   return next

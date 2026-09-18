@@ -26,6 +26,16 @@ function foundationState() {
   }
 }
 
+function hasDraftSkeletonValue(value) {
+  if (value === '') return true
+  if (Array.isArray(value)) return value.length === 0 || value.some(hasDraftSkeletonValue)
+  if (value && typeof value === 'object') {
+    const values = Object.values(value)
+    return values.length === 0 || values.some(hasDraftSkeletonValue)
+  }
+  return false
+}
+
 function intakePayload(state) {
   return {
     status: state.authStatus,
@@ -53,7 +63,11 @@ async function mockPendingClient(page, state, rememberedStep = 'identity') {
     app_metadata: {},
   }
 
-  await page.addInitScript((step) => window.localStorage.setItem('xform.foundation.step', step), rememberedStep)
+  await page.addInitScript((step) => {
+    window.localStorage.clear()
+    window.sessionStorage.clear()
+    window.localStorage.setItem('xform.foundation.step', step)
+  }, rememberedStep)
   await page.route('**/*', route => {
     const url = new URL(route.request().url())
     if (!['127.0.0.1', 'localhost'].includes(url.hostname) || url.pathname.startsWith('/api/')) return route.abort()
@@ -101,6 +115,18 @@ async function mockPendingClient(page, state, rememberedStep = 'identity') {
       return json(intakePayload(state))
     }
     if (path === '/api/v1/client/foundation-intake' && method === 'PATCH') {
+      if (hasDraftSkeletonValue(jsonBody.answers)) {
+        return route.fulfill({
+          status: 422,
+          json: {
+            error: {
+              code: 'foundation_invalid',
+              message: 'Foundation intake answers are invalid',
+              fields: { answers: 'Draft contains empty scaffold values.' },
+            },
+          },
+        })
+      }
       state.answers = jsonBody.answers
       return json(intakePayload(state))
     }
@@ -342,11 +368,17 @@ async function mockCoachFoundation(page, state) {
     if (path === '/api/v1/coach/clients' && method === 'GET') return json({ items: state.roster })
     if (path === '/api/v1/coach/clients/client-1/review' && method === 'GET') return json(state.review)
     if (path === '/api/v1/coach/clients/client-1/foundation-intake' && method === 'GET') return json(state.intake)
+    if (path === '/api/v1/coach/clients/client-1/progress-photos/front-photo/content' && method === 'GET') return route.fulfill({ contentType: 'image/png', body: tinyImage })
+    if (path.match(/^\/api\/v1\/coach\/clients\/client-1\/progress-photos\/.+-photo\/content$/) && method === 'GET') {
+      return route.fulfill({ status: 403, json: { error: { message: 'Forbidden' } } })
+    }
     if (path === '/api/v1/coach/clients/client-1/progress-photos' && method === 'GET') return json({ items: [], has_more: false })
     if (path === '/api/v1/coach/clients/client-1/check-ins' && method === 'GET') return json({ items: [], has_more: false })
     if (path === '/api/v1/coach/clients/client-1/workout-history' && method === 'GET') return json({ items: [] })
     if (path === '/api/v1/coach/clients/client-1/nutrition-plan' && method === 'GET') return json({ active_plan: null, draft: null, food_library: [] })
     if (path === '/api/v1/coach/clients/client-1/workout-program' && method === 'GET') return json({ active_program: null, draft: null, exercise_library: [] })
+    if (path === '/api/v1/coach/clients/client-1/lab-reports' && method === 'GET') return json({ items: [], has_more: false })
+    if (path === '/api/v1/coach/clients/client-1/lab-reports/request' && method === 'GET') return json({ request: null })
 
     return route.fulfill({ status: 501, json: { error: { message: `Unmocked ${method} ${path}` } } })
   })
@@ -375,6 +407,15 @@ test('uploading one pose shows a preview and saved status', async ({ page }) => 
   await page.locator('input[type="file"]').first().setInputFiles({ name: 'front.png', mimeType: 'image/png', buffer: tinyImage })
   await expect(page.getByRole('status')).toContainText('Front photo uploaded.')
   await expect(page.getByAltText('Front preview')).toBeVisible()
+})
+
+test('next saves a compact partial draft without empty scaffold values', async ({ page }) => {
+  await loginPendingClient(page, foundationState(), 'identity')
+  await expect(page.getByRole('heading', { name: 'Foundation form' })).toBeVisible()
+  await expect(page.getByText('Tell us how to identify and contact you.')).toBeVisible()
+  await page.getByRole('button', { name: 'Next' }).click()
+  await expect(page.getByText('Body context for coaching support only.')).toBeVisible()
+  await expect(page.getByText('Draft contains empty scaffold values.')).toHaveCount(0)
 })
 
 test('failed intake load shows the unavailable fallback and no editable wizard', async ({ page }) => {
@@ -407,4 +448,27 @@ test('coach reads submitted foundation answers', async ({ page }) => {
   await page.getByRole('combobox', { name: 'CLIENT', exact: true }).selectOption('client-1')
   await expect(page.getByRole('heading', { name: 'Foundation form', exact: true })).toBeVisible()
   await expect(page.getByText('Never been to the gym')).toBeVisible()
+})
+
+test('coach panel keeps submitted answers visible when a foundation photo fails to hydrate', async ({ page }) => {
+  const state = coachFoundationState()
+  for (const view of ['front', 'back', 'side', 'front_double_bicep', 'back_double_bicep']) {
+    state.intake.photos[view] = {
+      id: `${view}-photo`,
+      view,
+      captured_on: '2026-09-18',
+      file_name: `${view}.png`,
+      content_url: `/api/v1/coach/clients/client-1/progress-photos/${view}-photo/content`,
+      uploaded_at: '2026-09-18T10:00:00Z',
+    }
+  }
+
+  await loginCoach(page, state)
+  await page.getByRole('button', { name: 'Health', exact: true }).click()
+  await page.getByRole('combobox', { name: 'CLIENT', exact: true }).selectOption('client-1')
+
+  await expect(page.getByText('Never been to the gym')).toBeVisible()
+  await expect(page.getByAltText('Front foundation photo')).toBeVisible()
+  await expect(page.getByText('No photo submitted.').first()).toBeVisible()
+  await expect(page.getByText('Foundation form unavailable')).toHaveCount(0)
 })
