@@ -55,6 +55,12 @@ class SupabaseClientService:
             "role": profile["role"],
         }
 
+    def foundation_intake_status(self) -> str:
+        client = self._one_or_none("clients", {"id": f"eq.{self.client_id}"})
+        if client is None:
+            raise APIError(403, "client_role_required", "Client workspace access is required")
+        return client.get("foundation_intake_status") or "not_required"
+
     def get_dashboard(self) -> dict[str, Any]:
         client, profile = self._client_and_profile()
         today = local_today(client["timezone"])

@@ -1,6 +1,6 @@
 from typing import Any
 
-from fastapi import Depends, Header
+from fastapi import Depends, Header, Request
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings, get_settings
@@ -12,6 +12,7 @@ from app.services.supabase_client import SupabaseClientService
 
 
 def get_client_service(
+    request: Request,
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
     authorization: str | None = Header(default=None),
@@ -25,4 +26,8 @@ def get_client_service(
     service = SupabaseClientService(settings=settings, user=user)
     if service.workspace()["role"] != "client":
         raise APIError(403, "client_role_required", "Client workspace access is required")
+    if service.foundation_intake_status() == "pending":
+        path = request.url.path
+        if "/foundation-intake" not in path and "/progress-photos" not in path:
+            raise APIError(403, "foundation_intake_required", "Complete your foundation form to open this workspace.")
     return service

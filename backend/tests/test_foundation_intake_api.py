@@ -7,9 +7,12 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
-from app.core.config import Settings
+from app.api import deps as api_deps
+from fastapi.testclient import TestClient
+
+from app.core.config import Settings, get_settings
 from app.core.errors import APIError
-from app.core.supabase import AuthenticatedUser
+from app.core.supabase import AuthenticatedUser, get_authenticated_user
 from app.db.base import Base
 from app.main import app
 from app.schemas.foundation_intake import FoundationAnswers, FoundationAnswersDraft
@@ -21,6 +24,7 @@ from app.services.supabase_client import SupabaseClientService
 
 
 CLIENT_ID = "80000000-0000-0000-0000-000000000002"
+AUTH_HEADERS = {"Authorization": "Bearer client-jwt"}
 
 
 class FakeResponse:
@@ -75,6 +79,182 @@ def client_service() -> FoundationIntakeService:
     return FoundationIntakeService.from_client(
         SupabaseClientService(settings(), client_user())
     )
+
+
+def intake_payload(*, status: str = "pending", answers: dict | None = None) -> dict:
+    return {
+        "status": status,
+        "schema_version": 1,
+        "answers": answers,
+        "prefill": {
+            "full_name": "Taylor Example",
+            "email": "client@example.test",
+        },
+        "photos": {view: None for view in PHOTO_VIEWS},
+        "waiver_version": WAIVER_VERSION,
+        "attention_flags": [],
+        "submitted_at": None,
+    }
+
+
+def dashboard_payload() -> dict:
+    return {
+        "client": {"id": CLIENT_ID, "first_name": "Taylor", "primary_goal": "Lose fat"},
+        "body": {
+            "current_weight_kg": None,
+            "latest_waist_cm": None,
+            "change_from_start_kg": None,
+            "target_progress_percent": None,
+            "trend": [],
+        },
+        "check_ins": {"count": 0, "status": "due"},
+        "training_volume": {
+            "range_days": 30,
+            "total_kg": 0,
+            "sessions": 0,
+            "training_days": 0,
+            "best_day_kg": 0,
+            "daily_kg": [],
+        },
+        "next_actions": [],
+    }
+
+
+@pytest.fixture
+def client_app(monkeypatch: pytest.MonkeyPatch):
+    app.dependency_overrides[get_settings] = settings
+    app.dependency_overrides[get_authenticated_user] = client_user
+    monkeypatch.setattr(api_deps, "get_authenticated_user", lambda authorization, settings: client_user())
+
+    monkeypatch.setattr(
+        SupabaseClientService,
+        "workspace",
+        lambda self: {
+            "id": CLIENT_ID,
+            "email": "client@example.test",
+            "first_name": "Taylor",
+            "full_name": "Taylor Example",
+            "role": "client",
+        },
+    )
+    monkeypatch.setattr(
+        SupabaseClientService,
+        "foundation_intake_status",
+        lambda self: "pending",
+        raising=False,
+    )
+    monkeypatch.setattr(
+        SupabaseClientService,
+        "get_dashboard",
+        lambda self: dashboard_payload(),
+    )
+    monkeypatch.setattr(
+        SupabaseClientService,
+        "get_active_nutrition_plan",
+        lambda self, plan_date: {
+            "plan_id": "plan-1",
+            "name": "Lean Phase",
+            "date": plan_date.isoformat(),
+            "daily_targets": {"calories_kcal": 2000, "protein_g": 150, "carbs_g": 180, "fat_g": 60},
+            "restrictions": [],
+            "meals": [],
+        },
+    )
+    monkeypatch.setattr(
+        SupabaseClientService,
+        "get_workout_for_date",
+        lambda self, session_date: {
+            "session_id": "session-1",
+            "date": session_date.isoformat(),
+            "title": "Workout A",
+            "week_label": "Week 1",
+            "coach_note": "",
+            "status": "ready",
+            "estimated_duration_minutes": 45,
+            "exercises": [],
+            "note": None,
+            "overall_difficulty": None,
+        },
+    )
+    monkeypatch.setattr(
+        SupabaseClientService,
+        "health_summary",
+        lambda self: {
+            "wellbeing": {"energy_score": None, "sentiment": "not_reported", "source_check_in_id": None},
+            "planning_context": {
+                "dietary_preferences": [],
+                "allergies": [],
+                "training_considerations": [],
+                "coach_note": "",
+            },
+            "safety_notice": "Coaching support only. Not medical advice.",
+        },
+    )
+    monkeypatch.setattr(
+        SupabaseClientService,
+        "profile",
+        lambda self: {
+            "client_id": CLIENT_ID,
+            "name": "Taylor Example",
+            "email": "client@example.test",
+            "primary_goal": "Lose fat",
+            "target_weight_kg": None,
+            "check_in_day": "monday",
+            "timezone": "UTC",
+            "dietary_preferences": "",
+            "allergies_injuries": "",
+        },
+    )
+    monkeypatch.setattr(
+        SupabaseClientService,
+        "list_progress_photos",
+        lambda self, view, limit, offset=0: {"items": [], "has_more": False},
+    )
+    monkeypatch.setattr(
+        SupabaseClientService,
+        "delete_progress_photo",
+        lambda self, photo_id: {"id": photo_id, "deleted": True, "cleanup_pending": False},
+    )
+    monkeypatch.setattr(
+        SupabaseClientService,
+        "get_photo_content",
+        lambda self, photo_id: (b"image-bytes", "image/webp", f"{photo_id}.webp"),
+    )
+
+    async def upload_progress_photo(self, file, view, captured_on, replace_photo_id=None):
+        return {
+            "id": "photo-1",
+            "view": view,
+            "captured_on": captured_on.isoformat(),
+            "file_name": file.filename or "progress-photo.webp",
+            "content_url": "/api/v1/client/progress-photos/photo-1/content",
+            "period_start": "2026-09-15",
+            "uploaded_at": "2026-09-18T08:00:00Z",
+            "cleanup_pending": False,
+        }
+
+    monkeypatch.setattr(SupabaseClientService, "upload_progress_photo", upload_progress_photo)
+    monkeypatch.setattr(
+        FoundationIntakeService,
+        "get_intake",
+        lambda self: intake_payload(status="pending", answers={}),
+    )
+    monkeypatch.setattr(
+        FoundationIntakeService,
+        "save_draft",
+        lambda self, answers: intake_payload(status="pending", answers=answers),
+    )
+    monkeypatch.setattr(
+        FoundationIntakeService,
+        "submit",
+        lambda self, answers, waiver_version: intake_payload(status="submitted", answers=answers),
+    )
+
+    try:
+        with TestClient(app) as client:
+            yield client
+    finally:
+        app.dependency_overrides.clear()
 
 
 def test_valid_fixtures_parse() -> None:
@@ -311,3 +491,109 @@ def test_openapi_includes_foundation_intake_routes() -> None:
     assert "get" in paths[base]
     assert "patch" in paths[base]
     assert "post" in paths[f"{base}/submit"]
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/api/v1/client/dashboard",
+        "/api/v1/client/health-summary",
+        "/api/v1/client/profile",
+        "/api/v1/client/nutrition/active-plan?date=2026-09-18",
+        "/api/v1/client/workout-sessions/today?date=2026-09-18",
+    ],
+)
+def test_pending_client_blocks_non_intake_routes(client_app: TestClient, path: str) -> None:
+    response = client_app.get(path, headers=AUTH_HEADERS)
+
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "foundation_intake_required"
+
+
+@pytest.mark.parametrize(
+    ("method", "path", "kwargs"),
+    [
+        ("GET", "/api/v1/client/foundation-intake", {}),
+        (
+            "PATCH",
+            "/api/v1/client/foundation-intake",
+            {"json": {"answers": {"identity": {"full_name": "Taylor Example"}}}},
+        ),
+        (
+            "POST",
+            "/api/v1/client/foundation-intake/submit",
+            {"json": {"answers": valid_submit_answers("male"), "waiver_version": WAIVER_VERSION}},
+        ),
+        ("GET", "/api/v1/client/progress-photos?view=front&limit=50", {}),
+        (
+            "POST",
+            "/api/v1/client/progress-photos",
+            {
+                "data": {"view": "front", "captured_on": "2026-09-18"},
+                "files": {"file": ("front.webp", b"fake-image", "image/webp")},
+            },
+        ),
+        ("DELETE", "/api/v1/client/progress-photos/photo-1", {}),
+        ("GET", "/api/v1/client/progress-photos/photo-1/content", {}),
+    ],
+)
+def test_pending_client_allows_intake_and_photo_routes(
+    client_app: TestClient,
+    method: str,
+    path: str,
+    kwargs: dict,
+) -> None:
+    response = client_app.request(method, path, headers=AUTH_HEADERS, **kwargs)
+
+    assert response.status_code == 200
+
+
+def test_submitted_client_can_open_dashboard(
+    client_app: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        SupabaseClientService,
+        "foundation_intake_status",
+        lambda self: "submitted",
+        raising=False,
+    )
+
+    response = client_app.get("/api/v1/client/dashboard", headers=AUTH_HEADERS)
+
+    assert response.status_code == 200
+    assert response.json()["client"]["id"] == CLIENT_ID
+
+
+def test_not_required_client_can_open_dashboard(
+    client_app: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        SupabaseClientService,
+        "foundation_intake_status",
+        lambda self: "not_required",
+        raising=False,
+    )
+
+    response = client_app.get("/api/v1/client/dashboard", headers=AUTH_HEADERS)
+
+    assert response.status_code == 200
+    assert response.json()["client"]["id"] == CLIENT_ID
+
+
+def test_foundation_intake_status_missing_client_maps_to_client_access_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def request(method: str, url: str, **kwargs):
+        if url.endswith("/rest/v1/clients"):
+            return FakeResponse(200, [])
+        raise AssertionError(url)
+
+    monkeypatch.setattr(httpx, "request", request)
+
+    with pytest.raises(APIError) as err:
+        SupabaseClientService(settings(), client_user()).foundation_intake_status()
+
+    assert err.value.status_code == 403
+    assert err.value.code == "client_role_required"
