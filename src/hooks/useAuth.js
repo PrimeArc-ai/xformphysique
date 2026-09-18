@@ -194,6 +194,13 @@ export default function useAuth() {
     return workspace
   }, [loadWorkspace, state.session])
 
+  const refreshWorkspace = useCallback(async () => {
+    if (!state.session) return null
+    const workspace = await getWorkspace(state.session.access_token)
+    setState((current) => ({ ...current, workspace, error: '' }))
+    return workspace
+  }, [state.session])
+
   const activationRequired = Boolean(
     state.session?.user?.user_metadata?.xform_invitation
     && !state.session?.user?.user_metadata?.xform_password_set,
@@ -209,6 +216,7 @@ export default function useAuth() {
     signIn,
     signOut,
     activateAccount,
+    refreshWorkspace,
     requestPasswordReset,
     completePasswordReset,
   }

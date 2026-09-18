@@ -18,7 +18,12 @@ from app.db.base import Base
 from app.main import app
 from app.schemas.foundation_intake import FoundationAnswers, FoundationAnswersDraft
 from app.services.client import ClientService, seed_demo_data
-from app.services.foundation_catalog import WAIVER_VERSION, attention_flags, valid_submit_answers
+from app.services.foundation_catalog import (
+    CHECKLIST_GROUPS,
+    WAIVER_VERSION,
+    attention_flags,
+    valid_submit_answers,
+)
 from app.services.foundation_intake import FoundationIntakeService
 from app.services.progress import PHOTO_VIEWS
 from app.services.supabase_client import SupabaseClientService
@@ -304,6 +309,7 @@ def test_get_returns_pending_payload(monkeypatch: pytest.MonkeyPatch) -> None:
     assert payload["photos"]["front"]["content_url"].endswith("/front-photo/content")
     assert "storage_path" not in payload["photos"]["front"]
     assert payload["photos"]["back"] is None
+    assert payload["catalog"] == CHECKLIST_GROUPS
     assert payload["waiver_version"] == WAIVER_VERSION
     assert payload["attention_flags"] == attention_flags(stored_answers)
     assert payload["submitted_at"] is None
@@ -311,6 +317,40 @@ def test_get_returns_pending_payload(monkeypatch: pytest.MonkeyPatch) -> None:
         call[2]["headers"]["Authorization"] == "Bearer client-jwt"
         for call in seen
     )
+
+
+def test_get_omits_catalog_for_coach_scoped_reads(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def request(method: str, url: str, **kwargs):
+        if url.endswith("/rest/v1/clients"):
+            return FakeResponse(200, [{"id": "assigned-client", "foundation_intake_status": "pending"}])
+        if url.endswith("/rest/v1/profiles"):
+            return FakeResponse(
+                200,
+                [
+                    {
+                        "id": "assigned-client",
+                        "role": "client",
+                        "full_name": "Taylor Example",
+                        "email": "client@example.test",
+                    }
+                ],
+            )
+        if url.endswith("/rest/v1/client_foundation_intakes"):
+            return FakeResponse(200, [intake_row()])
+        if url.endswith("/rest/v1/progress_photos"):
+            return FakeResponse(200, [])
+        raise AssertionError(url)
+
+    monkeypatch.setattr(httpx, "request", request)
+    service = SupabaseClientService(settings(), client_user())
+    service.client_id = "assigned-client"
+
+    payload = FoundationIntakeService.from_client(service).get_intake()
+
+    assert payload["status"] == "pending"
+    assert payload["catalog"] is None
 
 
 def test_save_draft_uses_caller_jwt_and_rpc(monkeypatch: pytest.MonkeyPatch) -> None:

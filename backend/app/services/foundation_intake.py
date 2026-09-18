@@ -8,7 +8,7 @@ from pydantic import ValidationError
 from app.core.errors import APIError
 from app.schemas.foundation_intake import FoundationAnswers, FoundationAnswersDraft
 from app.services.client import ClientService
-from app.services.foundation_catalog import WAIVER_VERSION, attention_flags
+from app.services.foundation_catalog import CHECKLIST_GROUPS, WAIVER_VERSION, attention_flags
 from app.services.progress import PHOTO_VIEWS
 from app.services.supabase_client import SupabaseClientService
 
@@ -120,6 +120,7 @@ class FoundationIntakeService:
                 full_name=profile.get("full_name", ""),
                 email=profile.get("email") or service.user.email or "",
                 photos={view: None for view in PHOTO_VIEWS},
+                catalog=None,
                 waiver_version=WAIVER_VERSION,
                 attention=[],
                 submitted_at=None,
@@ -142,6 +143,7 @@ class FoundationIntakeService:
             full_name=profile.get("full_name", ""),
             email=profile.get("email") or service.user.email or "",
             photos=self._photo_slots(),
+            catalog=CHECKLIST_GROUPS if status == "pending" and service.user.id == service.client_id else None,
             waiver_version=intake.get("waiver_version") or WAIVER_VERSION,
             attention=attention_flags(answers),
             submitted_at=intake.get("submitted_at"),
@@ -208,6 +210,7 @@ class FoundationIntakeService:
         full_name: str,
         email: str,
         photos: dict[str, dict[str, Any] | None],
+        catalog: dict[str, list[dict[str, str]]] | None,
         waiver_version: str,
         attention: list[str],
         submitted_at: datetime | str | None,
@@ -221,6 +224,7 @@ class FoundationIntakeService:
                 "email": email,
             },
             "photos": photos,
+            "catalog": catalog,
             "waiver_version": waiver_version,
             "attention_flags": attention,
             "submitted_at": submitted_at,

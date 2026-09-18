@@ -9,6 +9,7 @@ import useAuth from './hooks/useAuth'
 import AuthGate from './AuthGate'
 import AccountActivation from './AccountActivation'
 import PasswordReset from './PasswordReset'
+import FoundationIntake from './foundation/FoundationIntake'
 
 const navigation = [
   ['dashboard', 'Dashboard'],
@@ -106,6 +107,7 @@ function App() {
   if (!auth.session) return <AuthGate auth={auth} />
   if (!auth.workspace) return <main className="auth-shell"><section className="auth-card"><h1>Workspace unavailable.</h1><p>{auth.error || 'Your account is authenticated but does not have an XForm workspace.'}</p><button className="lime-button" onClick={auth.signOut}>Sign out</button></section></main>
   if (auth.activationRequired) return <AccountActivation auth={auth} />
+  if (auth.workspace.role === 'client' && auth.workspace.foundation_intake_status === 'pending') return <FoundationIntake auth={auth} />
   if (auth.workspace.role === 'admin') return <AdminWorkspace account={auth.workspace} accessToken={auth.session.access_token} onSignOut={auth.signOut} />
   if (auth.workspace.role === 'coach') return <CoachWorkspace account={auth.workspace} accessToken={auth.session.access_token} onSignOut={auth.signOut} />
   if (auth.workspace.role === 'client') return <ClientWorkspace auth={auth} />

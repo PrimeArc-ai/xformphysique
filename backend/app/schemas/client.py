@@ -199,6 +199,7 @@ class FoundationIntakeResponse(APIModel):
     answers: dict[str, Any] | None
     prefill: FoundationIntakePrefill
     photos: FoundationPhotoSlotsResponse
+    catalog: dict[str, list[dict[str, str]]] | None = None
     waiver_version: str
     attention_flags: list[str] = Field(default_factory=list)
     submitted_at: datetime | None = None

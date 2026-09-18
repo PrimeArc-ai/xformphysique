@@ -25,6 +25,8 @@ async function request(path, options = {}) {
   if (!response.ok) {
     const error = new Error(payload?.error?.message || `Request failed (${response.status})`)
     error.status = response.status
+    error.code = payload?.error?.code || null
+    error.fields = payload?.error?.fields || null
     throw error
   }
   return payload
@@ -56,6 +58,17 @@ export function resourceUrl(path) {
 }
 
 export const clientApi = {
+  getFoundationIntake: () => request('/foundation-intake'),
+  saveFoundationDraft: (answers) => request('/foundation-intake', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ answers }),
+  }),
+  submitFoundationIntake: (answers, waiverVersion) => request('/foundation-intake/submit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ answers, waiver_version: waiverVersion }),
+  }),
   getDashboard: () => request('/dashboard'),
   getBodyEntries: () => request('/body-entries?limit=100'),
   saveBodyEntry: (entry) => request(`/body-entries/${entry.date}`, {
