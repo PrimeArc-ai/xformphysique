@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { clientApi, setAccessToken } from '../api/client'
 import WizardStep from './WizardStep'
-import { WAIVER_TEXT } from './waiver'
+import { WAIVER_TEXT, WAIVER_VERSION } from './waiver'
 import bodyFatReference from '../assets/foundation-bodyfat-reference.webp'
 import './foundation.css'
 
@@ -693,6 +693,7 @@ function renderField(field, answers, setAnswer) {
 export default function FoundationIntake({ auth }) {
   const previewUrls = useRef([])
   const [loading, setLoading] = useState(true)
+  const [loadFailed, setLoadFailed] = useState(false)
   const [saving, setSaving] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
@@ -714,6 +715,7 @@ export default function FoundationIntake({ auth }) {
 
   useEffect(() => {
     setAccessToken(auth.session.access_token)
+    setLoadFailed(false)
     let active = true
     ;(async () => {
       try {
@@ -726,11 +728,13 @@ export default function FoundationIntake({ auth }) {
         setPrefillEmail(payload.prefill?.email || auth.workspace.email || '')
         setCatalog(payload.catalog || {})
         setPhotos(hydratedPhotos)
+        setLoadFailed(false)
         const remembered = window.localStorage.getItem(STEP_MEMORY_KEY)
         const stepKeys = STEP_DEFS.map(([key]) => key)
         setCurrentStepKey(stepKeys.includes(remembered) ? remembered : 'identity')
       } catch (requestError) {
         if (!active) return
+        setLoadFailed(true)
         setError(requestError.message || 'Could not load your foundation form.')
       } finally {
         if (active) setLoading(false)
@@ -794,7 +798,7 @@ export default function FoundationIntake({ auth }) {
     setError('')
     setSubmitIssues([])
     try {
-      await clientApi.submitFoundationIntake(normalizeAnswers(answers), 'xform-foundation-waiver-v1')
+      await clientApi.submitFoundationIntake(normalizeAnswers(answers), WAIVER_VERSION)
       window.localStorage.removeItem(STEP_MEMORY_KEY)
       await auth.refreshWorkspace()
     } catch (requestError) {
@@ -851,7 +855,7 @@ export default function FoundationIntake({ auth }) {
     return <main className="auth-shell"><section className="auth-card"><span className="loading-dot" /><strong>Loading your foundation form…</strong></section></main>
   }
 
-  if (error && !Object.keys(catalog).length && !currentStep) {
+  if (loadFailed) {
     return <main className="auth-shell"><section className="auth-card"><h1>Foundation form unavailable.</h1><p>{error}</p><button className="lime-button" onClick={auth.signOut}>Sign out</button></section></main>
   }
 

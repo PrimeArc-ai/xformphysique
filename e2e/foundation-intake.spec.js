@@ -4,6 +4,7 @@ import { tinyImage } from './progress-fixture'
 function foundationState() {
   return {
     authStatus: 'pending',
+    intakeLoadError: null,
     answers: {},
     photos: {
       front: null,
@@ -90,7 +91,15 @@ async function mockPendingClient(page, state, rememberedStep = 'identity') {
       })
     }
 
-    if (path === '/api/v1/client/foundation-intake' && method === 'GET') return json(intakePayload(state))
+    if (path === '/api/v1/client/foundation-intake' && method === 'GET') {
+      if (state.intakeLoadError) {
+        return route.fulfill({
+          status: state.intakeLoadError.status,
+          json: { error: { message: state.intakeLoadError.message } },
+        })
+      }
+      return json(intakePayload(state))
+    }
     if (path === '/api/v1/client/foundation-intake' && method === 'PATCH') {
       state.answers = jsonBody.answers
       return json(intakePayload(state))
@@ -204,6 +213,17 @@ test('uploading one pose shows a preview and saved status', async ({ page }) => 
   await expect(page.getByAltText('Front preview')).toBeVisible()
 })
 
+test('failed intake load shows the unavailable fallback and no editable wizard', async ({ page }) => {
+  const state = foundationState()
+  state.intakeLoadError = { status: 503, message: 'Foundation intake is temporarily unavailable.' }
+  await loginPendingClient(page, state)
+  await expect(page.getByRole('heading', { name: 'Foundation form unavailable.' })).toBeVisible()
+  await expect(page.getByText('Foundation intake is temporarily unavailable.')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Next' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Save draft' })).toHaveCount(0)
+  await expect(page.getByLabel('Full name')).toHaveCount(0)
+})
+
 test('submit without waiver stays on the wizard and successful submit opens the dashboard', async ({ page }) => {
   await loginPendingClient(page, foundationState(), 'waiver')
   await expect(page.getByRole('heading', { name: 'Waiver' })).toBeVisible()
@@ -213,5 +233,6 @@ test('submit without waiver stays on the wizard and successful submit opens the 
   await page.getByLabel('I agree', { exact: true }).check()
   await page.getByRole('button', { name: 'Submit', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Dashboard' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Hello, Navaneet' })).toBeVisible()
   await expect(page.getByRole('heading', { name: /Foundation form/i })).toHaveCount(0)
 })
