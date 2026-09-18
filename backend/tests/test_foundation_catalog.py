@@ -192,6 +192,21 @@ def test_attention_flags_include_pregnancy_and_physician_warning() -> None:
     assert attention_flags(payload) == ["reported_pregnancy", "physician_said_no_exercise"]
 
 
+@pytest.mark.parametrize("answer", ["No.", "no"])
+def test_attention_flags_treat_negative_physician_answers_as_no_flag(answer: str) -> None:
+    payload = valid_submit_answers("male")
+    payload["safety"]["physician_said_no_exercise"] = answer
+
+    assert attention_flags(payload) == []
+
+
+def test_attention_flags_keep_affirmative_physician_warning() -> None:
+    payload = valid_submit_answers("male")
+    payload["safety"]["physician_said_no_exercise"] = "Yes, stop training"
+
+    assert attention_flags(payload) == ["physician_said_no_exercise"]
+
+
 def test_submit_rejects_underage_date_of_birth() -> None:
     payload = valid_submit_answers("male")
     payload["identity"]["date_of_birth"] = "2010-01-15"

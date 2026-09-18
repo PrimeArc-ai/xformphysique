@@ -1128,6 +1128,7 @@ def attention_flags(answers: dict[str, Any] | Any) -> list[str]:
     if sex == "female" and sex_specific.get("pregnant") in {"yes", "unsure"}:
         flags.append("reported_pregnancy")
     physician = str(payload.get("safety", {}).get("physician_said_no_exercise", "")).strip()
-    if physician and physician.casefold() != "no":
+    physician_casefolded = physician.casefold()
+    if physician and re.match(r"^no\b", physician_casefolded) is None:
         flags.append("physician_said_no_exercise")
     return flags
