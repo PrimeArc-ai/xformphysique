@@ -20,40 +20,34 @@ def week_start(day: date) -> date:
 
 
 def schedule(client: dict, entries: list[dict], now: datetime | None = None) -> dict:
-    today = local_today(client.get("timezone", "UTC"), now)
-    period = week_start(today)
-    days = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
-    weekday = days.index(client.get("check_in_day", "sunday"))
-    due = period + timedelta(days=weekday)
-    submitted = {str(item["period_start"])[:10] for item in entries}
-    created_value = str(client.get("created_at") or today)
-    if len(created_value) > 10:
-        created_at = datetime.fromisoformat(created_value.replace("Z", "+00:00"))
-        # SQLite retains the UTC value but drops its timezone annotation.
-        created = local_today(client.get("timezone", "UTC"), created_at.replace(tzinfo=timezone.utc) if created_at.tzinfo is None else created_at)
-    else:
-        created = date.fromisoformat(created_value)
-    first = week_start(created) + timedelta(days=weekday)
-    if first < created:
-        first += timedelta(days=7)
-    missed, cursor = [], first
+    zone = client.get("timezone", "UTC")
+    today = local_today(zone, now)
+
+    def local_date(value):
+        value = str(value)
+        if len(value) <= 10:
+            return date.fromisoformat(value)
+        instant = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        return local_today(zone, instant.replace(tzinfo=timezone.utc) if instant.tzinfo is None else instant)
+
+    latest = max(entries, key=lambda e: str(e["submitted_at"]), default=None)
+    anchor = local_date(latest["submitted_at"] if latest else client.get("created_at") or today)
+    due = anchor + timedelta(days=7)
+    done = bool(latest and today < due)
+    missed, cursor = [], due
     while cursor < today:
-        if week_start(cursor).isoformat() not in submitted:
-            missed.append(cursor.isoformat())
+        missed.append(cursor.isoformat())
         cursor += timedelta(days=7)
-    consecutive, cursor = 0, due if due < today else due - timedelta(days=7)
-    while cursor >= first and week_start(cursor).isoformat() not in submitted:
-        consecutive += 1
-        cursor -= timedelta(days=7)
-    done = period.isoformat() in submitted
-    return {"timezone": client.get("timezone", "UTC"), "today": today.isoformat(),
-            "day_of_week": days[weekday], "period_start": period.isoformat(),
+    # Keep the submitted cycle editable until due; late submissions use actual date.
+    period = str(latest["period_start"])[:10] if done else today.isoformat()
+    return {"timezone": zone, "today": today.isoformat(),
+            "day_of_week": due.strftime("%A").lower(), "period_start": period,
             "current_status": "submitted" if done else "overdue" if today > due else "due" if today == due else "upcoming",
-            "due_on": due.isoformat(), "next_due_on": (due + timedelta(days=7)).isoformat(),
-            "previous_due_on": (due - timedelta(days=7)).isoformat(),
+            "due_on": due.isoformat(), "next_due_on": due.isoformat(),
+            "previous_due_on": anchor.isoformat(),
             "missed_due_dates": missed, "missed_count": len(missed),
-            "consecutive_missed": consecutive,
-            "previous_submitted_on": max((str(e["submitted_at"]) for e in entries), default=None)}
+            "consecutive_missed": len(missed),
+            "previous_submitted_on": str(latest["submitted_at"]) if latest else None}
 
 
 def exercise_history(sessions: list[dict]) -> dict:

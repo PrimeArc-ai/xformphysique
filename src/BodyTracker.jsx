@@ -9,7 +9,7 @@ const formatDate = (value) => new Intl.DateTimeFormat('en-GB', {
 }).format(new Date(`${value}T12:00:00`))
 
 function BodyTracker({ entries, onAddEntry }) {
-  const [form, setForm] = useState({ date: today, weight: '', waist: '' })
+  const [form, setForm] = useState({ date: today, weight: '' })
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -52,13 +52,13 @@ function BodyTracker({ entries, onAddEntry }) {
     setSaving(true)
     setError('')
     try {
-      await onAddEntry({
+      const result = await onAddEntry({
         date: form.date,
         weight,
-        waist: form.waist ? Number(form.waist) : null,
       })
-      setForm((current) => ({ ...current, weight: '', waist: '' }))
+      setForm((current) => ({ ...current, weight: '' }))
       setSaved(true)
+      if (result?.refresh_warning) setError(result.refresh_warning)
     } catch (requestError) {
       setError(requestError.message || 'Could not save body progress.')
     } finally {
@@ -69,14 +69,14 @@ function BodyTracker({ entries, onAddEntry }) {
   return (
     <section className="tracker-feature" aria-labelledby="tracker-title">
       <header className="feature-heading">
-        <div><p className="kicker">CLIENT / BODY TRACKER</p><h2 id="tracker-title">Track signal. See change.</h2><p>Daily weight first. Waist stays optional.</p></div>
+        <div><p className="kicker">CLIENT / BODY TRACKER</p><h2 id="tracker-title">Track signal. See change.</h2><p>Record your date and weight.</p></div>
         <span className="local-state"><i />LIVE API</span>
       </header>
 
       <section className="tracker-summary-row" aria-label="Body tracker summary">
         <article><p>CURRENT WEIGHT</p><strong>{recentEntries[0]?.weight.toFixed(1) ?? '—'}<small> kg</small></strong><span>Latest recorded entry</span></article>
         <article><p>RECORDED TREND</p><strong className={trend?.difference <= 0 ? 'lime-text' : 'warning-text'}>{trend ? `${trend.difference > 0 ? '+' : '−'}${Math.abs(trend.difference).toFixed(1)}` : '—'}<small> kg</small></strong><span>{trend ? 'Across recorded history' : 'Add two entries to calculate'}</span></article>
-        <article><p>MEASUREMENTS</p><strong>{recentEntries.filter((entry) => entry.waist != null).length}</strong><span>Waist entries enabled</span></article>
+        <article><p>WEIGHT ENTRIES</p><strong>{recentEntries.length}</strong><span>Recorded weight history</span></article>
       </section>
 
       <section className="tracker-grid">
@@ -85,7 +85,6 @@ function BodyTracker({ entries, onAddEntry }) {
           <form className="tracker-form" onSubmit={submitEntry}>
             <label>Date<input type="date" value={form.date} max={today} onChange={(event) => setForm((current) => ({ ...current, date: event.target.value }))} required /></label>
             <label>Weight <div className="input-with-unit"><input type="number" value={form.weight} min="0.1" step="0.1" placeholder="68.4" onChange={(event) => setForm((current) => ({ ...current, weight: event.target.value }))} required /><span>kg</span></div></label>
-            <label className="wide-field"><span>Waist <em>OPTIONAL / ENABLED MEASUREMENT</em></span><div className="input-with-unit"><input type="number" value={form.waist} min="0.1" step="0.1" placeholder="71" onChange={(event) => setForm((current) => ({ ...current, waist: event.target.value }))} /><span>cm</span></div></label>
             <button className="lime-button" type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save body progress'} <span aria-hidden="true">↗</span></button>
           </form>
           <p className="form-state" aria-live="polite">{error || (saved ? 'Body progress saved to your XForm record.' : 'Entries save to your private coaching record.')}</p>
@@ -99,7 +98,7 @@ function BodyTracker({ entries, onAddEntry }) {
 
       <article className="panel history-panel">
         <header><div><p className="kicker">RECORDED HISTORY</p><span>Newest entries first.</span></div><span className="range-label">{recentEntries.length} TOTAL</span></header>
-        {recentEntries.length ? <div className="history-table" role="table" aria-label="Recorded body measurements"><div className="history-head" role="row"><span>DATE</span><span>WEIGHT</span><span>WAIST</span><span>STATUS</span></div>{recentEntries.map((entry, index) => <div className="history-row" role="row" key={entry.id}><span>{formatDate(entry.date)}</span><strong>{entry.weight.toFixed(1)} kg</strong><span>{entry.waist != null ? `${entry.waist.toFixed(1)} cm` : '—'}</span><span className={index === 0 ? 'latest-tag' : 'recorded-tag'}>{index === 0 ? 'LATEST' : 'RECORDED'}</span></div>)}</div> : <div className="tracker-empty"><strong>No body data yet.</strong><span>Use form above to record first entry.</span></div>}
+        {recentEntries.length ? <div className="history-table" role="table" aria-label="Recorded body measurements"><div className="history-head" style={{ gridTemplateColumns: '1.4fr 1fr .8fr', minWidth: 0 }} role="row"><span>DATE</span><span>WEIGHT</span><span>STATUS</span></div>{recentEntries.map((entry, index) => <div className="history-row" style={{ gridTemplateColumns: '1.4fr 1fr .8fr', minWidth: 0 }} role="row" key={entry.id}><span>{formatDate(entry.date)}</span><strong>{entry.weight.toFixed(1)} kg</strong><span className={index === 0 ? 'latest-tag' : 'recorded-tag'}>{index === 0 ? 'LATEST' : 'RECORDED'}</span></div>)}</div> : <div className="tracker-empty"><strong>No body data yet.</strong><span>Use form above to record first entry.</span></div>}
       </article>
     </section>
   )

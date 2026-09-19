@@ -48,7 +48,16 @@ class SupabaseAdminService:
         if self.gateway is None:
             return local_demo.list_coaches()
         self._require_admin()
-        return {"items": self._rpc("admin_list_coaches")}
+        return {"items": self._rpc("admin_list_coaches_v2")}
+
+    def platform_totals(self):
+        if self.gateway is None:
+            coaches = local_demo.list_coaches()["items"]
+            codes = {client["client_code"] for coach in coaches
+                     for client in local_demo.coach_clients(coach["id"])["items"]}
+            return {"total_coaches": len(coaches), "total_clients": len(codes)}
+        self._require_admin()
+        return self._rpc("admin_platform_totals")
 
     def coach_clients(self, coach_id: UUID):
         if self.gateway is None:
@@ -94,14 +103,14 @@ class SupabaseAdminService:
 
     def create_coach(self, payload: CoachCreate):
         if self.gateway is None:
-            raise APIError(503, "local_demo", "Coach onboarding is unavailable in local demo.")
+            raise APIError(503, "local_demo", "Coach enrollment is unavailable in local demo.")
         self._require_admin()
         password = f"Xf!9{secrets.token_urlsafe(18)}"
         # Supabase rejects duplicate emails. Never promotes/replaces an existing account.
         account = SupabaseAdminGateway(self.settings).request("POST", "/auth/v1/admin/users", json={
             "email": str(payload.email).lower(), "password": password, "email_confirm": True,
             "app_metadata": {"xform_role": "coach"},
-            "user_metadata": {"full_name": payload.full_name, "professional_title": payload.professional_title},
+            "user_metadata": {"full_name": payload.full_name, "professional_title": payload.professional_title, "phone": payload.phone or None},
         }).json()
         coach_id = account.get("id")
         if not coach_id:

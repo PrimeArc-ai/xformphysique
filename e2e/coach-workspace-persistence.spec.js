@@ -87,6 +87,7 @@ function workspaceFixture() {
       },
       setup: {
         primary_goal: 'fat_loss',
+        amount_paid: null,
         check_in_day: 'wednesday',
         timezone: 'Asia/Kolkata',
         dietary_preferences: 'Vegetarian weekdays',
@@ -176,6 +177,12 @@ async function mockCoachWorkspace(page, state) {
       const [, clientId, rest] = clientMatch
       if (rest === 'foundation-intake' && method === 'GET') return json(foundationPayload())
       if (rest === 'review' && method === 'GET') return json(state.review)
+      if (rest === 'setup' && method === 'PATCH') {
+        const payload = request.postDataJSON()
+        state.lastSetupPayload = payload
+        state.review.setup = { ...state.review.setup, ...payload }
+        return json(state.review.setup)
+      }
       if (rest === 'private-notes' && method === 'POST') {
         const payload = request.postDataJSON()
         const note = {
@@ -307,4 +314,42 @@ test('audit log shows a nutrition_plan_published fixture row', async ({ page }) 
   await openNav(page, 'Audit Log')
   await expect(page.getByRole('table', { name: 'Coach audit events' })).toBeVisible()
   await expect(page.getByText('nutrition_plan_published')).toBeVisible()
+})
+
+
+test('client setup saves amount paid across reload without obsolete tracking controls', async ({ page }) => {
+  const state = workspaceFixture()
+  await mockCoachWorkspace(page, state)
+  await loginCoach(page)
+  await page.getByRole('button', { name: 'Review QA Client' }).click()
+  const setup = page.locator('article.coach-setup-panel').filter({ hasText: 'CLIENT SETUP' })
+  await expect(setup.getByLabel('Amount paid')).toHaveValue('')
+  await expect(setup.getByLabel(/Target|Check-in day|Enabled measurements/i)).toHaveCount(0)
+  await setup.getByLabel('Amount paid').fill('1250.50')
+  await setup.getByRole('button', { name: 'Save setup', exact: true }).click()
+  await expect.poll(() => state.review.setup.amount_paid).toBe(1250.5)
+  expect(state.lastSetupPayload).not.toHaveProperty('target_weight_kg')
+  expect(state.lastSetupPayload).not.toHaveProperty('target_waist_cm')
+  expect(state.lastSetupPayload).not.toHaveProperty('target_date')
+  expect(state.lastSetupPayload).not.toHaveProperty('check_in_day')
+  expect(state.lastSetupPayload).not.toHaveProperty('enabled_measurements')
+  // Existing historical setup values must not be overwritten by hidden inputs.
+  expect(state.review.setup.target_weight_kg).toBe(75)
+  expect(state.review.setup.check_in_day).toBe('wednesday')
+  await page.reload()
+  await reloginIfNeeded(page)
+  await page.getByRole('button', { name: 'Review QA Client' }).click()
+  await expect(setup.getByLabel('Amount paid')).toHaveValue('1250.5')
+})
+
+test('client enrollment offers amount paid without targets, weekday or measurement controls', async ({ page }) => {
+  const state = workspaceFixture()
+  await mockCoachWorkspace(page, state)
+  await loginCoach(page)
+  await page.getByRole('button', { name: 'Enroll client', exact: true }).click()
+  const enrollment = page.locator('form.coach-modal')
+  await expect(enrollment.getByLabel('Amount paid')).toBeVisible()
+  await expect(enrollment.getByLabel(/Target|Check-in day|Enabled measurements/i)).toHaveCount(0)
+  await expect(enrollment.getByLabel('Timezone')).toHaveValue('Asia/Kolkata')
+  await expect(enrollment.getByRole('button', { name: 'Create & email invite' })).toBeVisible()
 })

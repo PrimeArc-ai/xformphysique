@@ -72,6 +72,7 @@ export async function mockProgress(page, role, state) {
     if (path === '/api/v1/auth/me') return json({ ...user, role, full_name: role === 'client' ? state.profile.name : 'Aisha Kapoor', first_name: 'Navaneet', ...(role === 'client' ? { foundation_intake_status: 'not_required' } : {}) })
     if (path.endsWith('/profile/photo')) return json({ photo: null })
     if (path.endsWith('/dashboard')) return json({ client: { first_name: 'Navaneet' }, body: { current_weight_kg: 78, trend: [], target_progress_percent: null }, check_ins: { count: state.checkins.length }, training_volume: { total_kg: 0, daily_kg: [], sessions: 0, training_days: 0, best_day_kg: 0 } })
+    if (/\/body-entries\/\d{4}-\d{2}-\d{2}$/.test(path) && method === 'PUT') return json({ id: 'body-entry', date: path.split('/').at(-1), ...jsonBody })
     if (path.endsWith('/body-entries')) return json({ items: [] })
     if (path.endsWith('/check-ins/current')) { const saved = { ...jsonBody, id: 'current-checkin', period_start: state.schedule.period_start, submitted_at: '2026-09-09T10:00:00Z' }; state.checkins = [saved, ...state.checkins.filter(c => c.id !== saved.id)]; state.schedule.current_status = 'submitted'; return json(saved) }
     if (path.endsWith('/feedback')) { const entry = state.checkins.find(c => path.includes(`/${c.id}/`)); entry.feedback = { ...jsonBody, updated_at: '2026-09-09T11:00:00Z', checkin_id: entry.id }; return json(entry.feedback) }

@@ -83,7 +83,7 @@ class ClientService:
                 session.exercise_logs or []
             )
         total_volume = round(sum(daily_volume.values()), 2)
-        due_on = self._next_weekday(today, client.check_in_day)
+        checkin_schedule = self.list_checkins(1)["schedule"]
         return {
             "client": {
                 "id": client.id,
@@ -104,7 +104,7 @@ class ClientService:
                     select(func.count(CheckIn.id)).where(CheckIn.client_id == self.client_id)
                 )
                 or 0,
-                "status": "submitted" if latest_checkin and latest_checkin.period_start == _week_start(today) else "due",
+                "status": checkin_schedule["current_status"],
             },
             "training_volume": {
                 "range_days": 30,
@@ -119,7 +119,7 @@ class ClientService:
             },
             "next_actions": [
                 {"type": "body_entry", "label": "Log body progress", "due": latest is None or latest.entry_date != today},
-                {"type": "check_in", "label": "Submit weekly check-in", "due": due_on == today},
+                {"type": "check_in", "label": "Submit weekly check-in", "due": checkin_schedule["current_status"] in ("due", "overdue")},
             ],
         }
 
@@ -149,7 +149,8 @@ class ClientService:
             self.db.add(entry)
         else:
             entry.weight_kg = payload.weight_kg
-            entry.waist_cm = payload.waist_cm
+            if "waist_cm" in payload.model_fields_set:
+                entry.waist_cm = payload.waist_cm
         self.db.commit()
         self.db.refresh(entry)
         response = self._body_payload(entry)
@@ -171,14 +172,14 @@ class ClientService:
         }
 
     def upsert_current_checkin(self, payload: CheckInUpsert) -> dict[str, Any]:
-        period_start = _week_start(self.today())
+        period_start = date.fromisoformat(self.list_checkins(1)["schedule"]["period_start"])
         entry = self.db.scalars(self._checkin_query().where(CheckIn.period_start == period_start)).first()
         if entry and entry.questionnaire_version > payload.questionnaire_version:
             raise APIError(409, "questionnaire_downgrade", "Refresh the app before editing this check-in")
         if entry is None:
             entry = CheckIn(id=_identifier("checkin"), client_id=self.client_id, period_start=period_start)
             self.db.add(entry)
-        entry.submitted_at = _now()
+            entry.submitted_at = _now()
         entry.energy_score = payload.energy_score
         entry.sleep_score = payload.sleep_score
         entry.sentiment = payload.sentiment

@@ -36,7 +36,7 @@ def test_void_rpc_success_is_not_parsed_as_json(monkeypatch):
 
 
 @pytest.mark.parametrize("role", ["coach", "client", None])
-@pytest.mark.parametrize("action", ["list", "clients", "create", "offboard", "reset"])
+@pytest.mark.parametrize("action", ["list", "totals", "clients", "create", "offboard", "reset"])
 def test_nonadmins_denied_before_any_privileged_operation(monkeypatch, role, action):
     calls = []
 
@@ -49,6 +49,7 @@ def test_nonadmins_denied_before_any_privileged_operation(monkeypatch, role, act
     service = SupabaseAdminService(SETTINGS, USER)
     with pytest.raises(APIError) as raised:
         if action == "list": service.list_coaches()
+        elif action == "totals": service.platform_totals()
         elif action == "clients": service.coach_clients(COACH_ID)
         elif action == "offboard": service.offboard_coach(COACH_ID)
         elif action == "reset": service.reset_password(COACH_ID)
@@ -187,3 +188,31 @@ def test_api_serialization_no_store_and_uuid_validation():
             assert client.get("/api/v1/admin/coaches/not-a-uuid/clients").status_code == 422
     finally:
         app.dependency_overrides.clear()
+
+
+def test_platform_totals_use_guarded_caller_rpc(monkeypatch):
+    def request(self, method, path, **kwargs):
+        assert self.access_token == "caller-jwt"
+        if path == "/rest/v1/profiles": return Result([{"role": "admin"}])
+        assert path == "/rest/v1/rpc/admin_platform_totals"
+        return Result({"total_coaches": 4, "total_clients": 9})
+    monkeypatch.setattr(SupabaseGateway, "request", request)
+    assert SupabaseAdminService(SETTINGS, USER).platform_totals() == {"total_coaches": 4, "total_clients": 9}
+
+
+def test_coach_phone_is_optional_and_validated():
+    assert CoachCreate(full_name="Test Coach", email="coach@example.com").phone is None
+    assert CoachCreate(full_name="Test Coach", email="coach@example.com", phone="+91 98765 43210").phone == "+91 98765 43210"
+    with pytest.raises(ValidationError):
+        CoachCreate(full_name="Test Coach", email="coach@example.com", phone="invalid phone")
+
+
+def test_coach_phone_passed_to_atomic_auth_provisioning(monkeypatch):
+    monkeypatch.setattr(SupabaseAdminService, "_require_admin", lambda self: None)
+    monkeypatch.setattr(SupabaseAdminService, "_rpc", lambda *a, **k: None)
+    monkeypatch.setattr(SupabaseAdminGateway, "__init__", lambda *a, **k: None)
+    def create(self, method, path, **kwargs):
+        assert kwargs["json"]["user_metadata"]["phone"] == "+91 98765 43210"
+        return Result({"id": str(COACH_ID), "email": "coach@example.com"})
+    monkeypatch.setattr(SupabaseAdminGateway, "request", create)
+    SupabaseAdminService(SETTINGS, USER).create_coach(CoachCreate(full_name="Test Coach", email="coach@example.com", phone="+91 98765 43210"))

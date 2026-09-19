@@ -10,7 +10,6 @@ export default function ClientDashboard({ dashboard, bodyEntries, workout, navig
   const body = dashboard.body
   const trend = (body.trend ?? []).filter(entry => Number.isFinite(entry.weight_kg)).slice(-7)
   const current = body.current_weight_kg ?? bodyEntries[0]?.weight ?? null
-  const progress = body.target_progress_percent == null ? null : Math.max(0, Math.min(100, body.target_progress_percent))
   const change = body.change_from_start_kg
   const volume = dashboard.training_volume
   const daily = volume.daily_kg ?? []
@@ -32,11 +31,7 @@ export default function ClientDashboard({ dashboard, bodyEntries, workout, navig
           <header><h3>Body progress</h3><button className="quiet-link" onClick={() => navigate('Body Tracker')}>View history <Arrow /></button></header>
           <div className="precision-body-summary">
             <div><p className="precision-weight">{current == null ? '—' : current.toFixed(1)}<small>{current != null && 'kg'}</small></p><p className="precision-change">{change == null ? 'Your first entry starts your signal.' : <><strong>{change > 0 ? '+' : change < 0 ? '−' : ''}{Math.abs(change).toFixed(1)} kg</strong> since your first entry</>}</p></div>
-            <div className="precision-target"><div><span>YOUR WEIGHT TARGET</span><strong>{progress ?? '—'}{progress != null && <small>%</small>}</strong></div>
-              <div className="precision-segments" role="progressbar" aria-label="Weight target progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress ?? undefined} aria-valuetext={progress == null ? 'No target progress available' : `${progress}%`}>
-                {Array.from({ length: 10 }, (_, index) => <i key={index} style={{ '--segment-fill': `${Math.max(0, Math.min(100, ((progress ?? 0) - index * 10) * 10))}%` }} />)}
-              </div><small>{progress == null ? 'Add entries and a target in your profile.' : 'Progress toward your personal target'}</small>
-            </div>
+
           </div>
           {trend.length ? <div className="precision-chart-wrap">
             <div className="precision-chart-label"><span>Weight · kg</span><span>{trend.length} logged {trend.length === 1 ? 'entry' : 'entries'}</span></div>
@@ -50,7 +45,7 @@ export default function ClientDashboard({ dashboard, bodyEntries, workout, navig
           <footer className="precision-panel-footer"><span>{bodyEntries.length} recorded body entries</span><span>Daily fluctuations are normal.</span></footer>
         </article>
         <div className="precision-metric-pair">
-          <article className="panel"><p className="kicker">LATEST WAIST</p><strong>{body.latest_waist_cm?.toFixed(1) ?? '—'}<small>{body.latest_waist_cm != null && 'cm'}</small></strong><p>Most recent measurement</p></article>
+          <article className="panel"><p className="kicker">WEIGHT ENTRIES</p><strong>{bodyEntries.length}<small>recorded</small></strong><p>Your weight tracking history</p></article>
           <article className="panel"><p className="kicker">CHECK-IN HISTORY</p><strong>{dashboard.check_ins.count}<small>submitted</small></strong><p>Your shared progress updates</p></article>
         </div>
         <article className="panel precision-volume">

@@ -44,10 +44,11 @@ function OnboardCoach({ token, onClose, onCreated }) {
       <p className="admin-muted">Create a coach workspace with its own client roster. Existing accounts cannot be overwritten.</p>
       <label>Full name<input name="full_name" required minLength={2} maxLength={160} autoComplete="name" autoFocus /></label>
       <label>Email<input name="email" type="email" required autoComplete="email" /></label>
+      <label>Phone (optional)<input name="phone" type="tel" maxLength={32} autoComplete="tel" /></label>
       <label>Professional title<input name="professional_title" required minLength={2} maxLength={120} defaultValue="Fitness Coach" /></label>
       <p className="admin-muted">A secure initial password will be generated for private sharing. Email invitations are not enabled for this flow.</p>
       {error && <p role="alert" className="auth-error">{error}</p>}
-      <div className="admin-dialog-actions"><button type="button" className="ghost-button" disabled={busy} onClick={onClose}>Cancel</button><button className="lime-button" disabled={busy}>{busy ? 'Creating account…' : 'Create coach'}</button></div>
+      <div className="admin-dialog-actions"><button type="button" className="ghost-button" disabled={busy} onClick={onClose}>Cancel</button><button className="lime-button" disabled={busy}>{busy ? 'Creating account…' : 'Enroll coach'}</button></div>
     </form>}
   </Modal>
 }
@@ -65,6 +66,7 @@ function CoachDetail({ coach, token, onClose, onOffboard, onResetPassword }) {
   }, [coach.id, token, retry])
   return <section className="admin-detail" aria-label="Coach details">
     <header><div><span className="kicker">COACH WORKSPACE</span><h2>{coach.full_name}</h2><p>{coach.professional_title || 'Coach'} · {coach.email}</p></div><button className="admin-close" onClick={onClose} aria-label="Close coach details">×</button></header>
+    <p>Phone: {coach.phone || 'Not provided'}</p>
     <div className="admin-privacy"><span aria-hidden="true">◈</span><p><strong>Client privacy, by design.</strong><br />Only client codes and assignment dates are shared here. Personal details, health records, notes and photos remain private to the client and their assigned coach.</p></div>
     <h3>Client assignments</h3>
     {error ? <div role="alert"><p className="auth-error">{error}</p><button className="ghost-button" onClick={() => setRetry(value => value + 1)}>Retry clients</button></div>
@@ -79,6 +81,7 @@ function CoachDetail({ coach, token, onClose, onOffboard, onResetPassword }) {
 
 export default function AdminWorkspace({ account, accessToken, onSignOut }) {
   const [coaches, setCoaches] = useState([])
+  const [totals, setTotals] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [query, setQuery] = useState('')
@@ -96,7 +99,10 @@ export default function AdminWorkspace({ account, accessToken, onSignOut }) {
   const reload = useCallback(async () => {
     const current = ++generation.current
     setLoading(true); setError('')
-    try { const result = await adminApi.coaches(accessToken); if (current === generation.current) setCoaches(result.items) }
+    try {
+      const [result, counts] = await Promise.all([adminApi.coaches(accessToken), adminApi.totals(accessToken)])
+      if (current === generation.current) { setCoaches(result.items); setTotals(counts) }
+    }
     catch (reason) { if (current === generation.current) setError(reason.message) }
     finally { if (current === generation.current) setLoading(false) }
   }, [accessToken])
@@ -131,17 +137,17 @@ export default function AdminWorkspace({ account, accessToken, onSignOut }) {
       <div className="account-block"><div className="account-detail"><span className="account-avatar">{account.first_name?.[0] || 'A'}</span><span><strong>{account.full_name}</strong><small>Administrator</small></span></div><button onClick={onSignOut}>Sign out</button></div>
     </aside>
     <main className="os-main">
-      <header className="os-topbar"><div><p className="kicker">TEAM & ACCESS</p><h1>Coach management</h1><p>A clear view of your team. Client privacy stays intact.</p></div><button className="lime-button" onClick={() => setOnboarding(true)}>+ Onboard coach</button></header>
+      <header className="os-topbar"><div><p className="kicker">TEAM & ACCESS</p><h1>Coach management</h1><p>A clear view of your team. Client privacy stays intact.</p></div><button className="lime-button" onClick={() => setOnboarding(true)}>+ Enroll coach</button></header>
       <div className="os-content admin-content">
         <div className="admin-mobile-account"><span>Admin · {account.first_name}</span><button className="ghost-button" onClick={onSignOut}>Sign out</button></div>
         {notice && <div className="os-notice" role="status"><span>{notice}</span><button aria-label="Dismiss message" onClick={() => setNotice('')}>×</button></div>}
-        <div className="admin-stats">{[['Total coaches', coaches.length], ['Active coaches', activeCount], ['Offboarded', coaches.length - activeCount], ['Active client assignments', coaches.reduce((count, coach) => count + coach.active_client_count, 0)]].map(([label, value]) => <section key={label}><p>{label}</p><strong>{loading || error ? '—' : value}</strong></section>)}</div>
+        <div className="admin-stats">{[['Total coaches', totals?.total_coaches ?? '—'], ['Active coaches', activeCount], ['Offboarded', coaches.length - activeCount], ['Total clients', totals?.total_clients ?? '—']].map(([label, value]) => <section key={label}><p>{label}</p><strong>{loading || error ? '—' : value}</strong></section>)}</div>
         <section className="admin-roster" aria-label="Coach roster">
-          <header><div><h2>Your coaching team</h2><p>Onboard coaches, review assignments and manage access.</p></div><button className="ghost-button" onClick={reload} disabled={loading}>Refresh</button></header>
+          <header><div><h2>Your coaching team</h2><p>Enroll coaches, review assignments and manage access.</p></div><button className="ghost-button" onClick={reload} disabled={loading}>Refresh</button></header>
           <div className="admin-toolbar"><label><span className="admin-sr-only">Search coaches</span><input type="search" placeholder="Search coaches by name or email" value={query} onChange={event => setQuery(event.target.value)} /></label><label><span className="admin-sr-only">Coach status</span><select value={filter} onChange={event => setFilter(event.target.value)}><option value="all">All coaches</option><option value="active">Active</option><option value="inactive">Offboarded</option></select></label></div>
           {error ? <div className="admin-empty" role="alert"><p className="auth-error">{error}</p><button className="ghost-button" onClick={reload}>Retry connection</button></div>
             : loading ? <p className="admin-empty" role="status">Loading your team…</p>
-              : !visible.length ? <p className="admin-empty">{coaches.length ? 'No coaches match your search.' : 'Your team starts here. Onboard your first coach.'}</p>
+              : !visible.length ? <p className="admin-empty">{coaches.length ? 'No coaches match your search.' : 'Your team starts here. Enroll your first coach.'}</p>
                 : <div className="admin-table-scroll"><table><thead><tr><th>Coach</th><th>Status</th><th>Clients</th><th>Joined</th><th><span className="admin-sr-only">Actions</span></th></tr></thead><tbody>{visible.map(coach => <tr key={coach.id} className={coach.id === selectedId ? 'selected' : ''}><td><strong>{coach.full_name}</strong><small>{coach.email}</small><small>{coach.professional_title}</small></td><td><span className={`admin-status ${coach.is_active ? '' : 'inactive'}`}>{coach.is_active ? 'Active' : 'Offboarded'}</span></td><td>{coach.active_client_count}</td><td>{displayDate(coach.created_at)}</td><td><button className="ghost-button" aria-label={`View ${coach.full_name}`} onClick={() => setSelectedId(coach.id)}>View details <span aria-hidden="true">↗</span></button></td></tr>)}</tbody></table></div>}
         </section>
         {selected && !loading && !error && <CoachDetail key={selected.id} coach={selected} token={accessToken} onClose={() => setSelectedId(null)} onOffboard={coach => { setActionError(''); setOffboarding(coach) }} onResetPassword={coach => { setActionError(''); setResetResult(null); setCopied(false); setResetting(coach) }} />}

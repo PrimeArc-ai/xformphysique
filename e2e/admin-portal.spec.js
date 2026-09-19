@@ -17,6 +17,7 @@ async function mockApp(page, role = 'admin') {
   })
   await page.route('**/api/v1/admin/**', async route => {
     const url = route.request().url()
+    if (url.endsWith('/totals')) return route.fulfill({ json: { total_coaches: roster.length, total_clients: 3 } })
     if (url.endsWith('/reset-password')) return route.fulfill({ json: { id: coach.id, full_name: coach.full_name, email: coach.email, initial_password: 'ResetMock!NotReal123', email_sent: false, audit_recorded: true } })
     if (url.endsWith('/offboard')) { roster = roster.map(item => ({ ...item, is_active: false, active_client_count: 0 })); return route.fulfill({ json: { id: coach.id, is_active: false, released_client_count: 1 } }) }
     if (url.endsWith('/clients')) return route.fulfill({ json: { items: [{ client_code: 'XP-0005', assigned_at: '2026-09-06T12:00:00Z', ended_at: null }] } })
@@ -47,6 +48,7 @@ test('portal mismatch stays at login and never opens an admin workspace', async 
 test('admin can inspect only minimal client assignments', async ({ page }) => {
   await mockApp(page); await login(page)
   await expect(page.getByRole('heading', { name: 'Coach management' })).toBeVisible()
+  await expect(page.locator('.admin-stats section').filter({ hasText: 'Total clients' }).locator('strong')).toHaveText('3')
   await page.getByRole('button', { name: 'View Aisha Kapoor' }).click()
   const detail = page.getByRole('region', { name: 'Coach details' })
   await expect(detail.getByRole('cell', { name: 'XP-0005', exact: true })).toBeVisible()
@@ -57,16 +59,18 @@ test('admin can inspect only minimal client assignments', async ({ page }) => {
 
 test('coach onboarding shows credentials once and no email claim', async ({ page }) => {
   await mockApp(page); await login(page)
-  await page.getByRole('button', { name: '+ Onboard coach' }).click()
+  await page.getByRole('button', { name: '+ Enroll coach' }).click()
   const dialog = page.getByRole('dialog')
   await dialog.getByLabel('Full name').fill('Rohan Mehta')
   await dialog.getByLabel('Email', { exact: true }).fill('rohan@example.com')
-  await dialog.getByRole('button', { name: 'Create coach', exact: true }).click()
+  await dialog.getByLabel('Phone (optional)').fill('+91 98765 43210')
+  await dialog.getByRole('button', { name: 'Enroll coach', exact: true }).click()
   await expect(dialog.getByLabel('Initial password')).toHaveValue('MockOnly!NotReal123')
   await expect(dialog).toContainText('No email has been sent.')
   await dialog.getByRole('button', { name: 'Done' }).click()
   await expect(page.getByRole('dialog')).toHaveCount(0)
-  await expect(page.getByRole('button', { name: 'View Rohan Mehta' })).toBeVisible()
+  await page.getByRole('button', { name: 'View Rohan Mehta' }).click()
+  await expect(page.getByRole('region', { name: 'Coach details' })).toContainText('+91 98765 43210')
 })
 
 test('password reset keeps the email and shows a new password once', async ({ page }) => {

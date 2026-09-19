@@ -51,14 +51,14 @@ def test_timezone_schedule_misses_and_fixed_seven_day_anchor():
     now = datetime(2026, 9, 6, 19, 0, tzinfo=timezone.utc)
     client = dict(timezone="Asia/Kolkata", check_in_day="sunday", created_at="2026-08-24")
     s = schedule(client, [], now)
-    assert s["today"] == "2026-09-07" and s["due_on"] == "2026-09-13"
-    assert s["next_due_on"] == "2026-09-20" and s["previous_due_on"] == "2026-09-06"
-    assert s["missed_count"] == s["consecutive_missed"] == 2
+    assert s["today"] == "2026-09-07" and s["due_on"] == "2026-08-31"
+    assert s["next_due_on"] == "2026-08-31" and s["previous_due_on"] == "2026-08-24"
+    assert s["missed_count"] == s["consecutive_missed"] == 1
     result = schedule(client, [{"period_start": "2026-08-31", "submitted_at": "2026-09-06T12:00:00Z"}], now)
-    assert result["missed_count"] == 1 and result["consecutive_missed"] == 0
+    assert result["missed_count"] == 0 and result["consecutive_missed"] == 0
     assert local_today("America/Los_Angeles", now) == date(2026, 9, 6)
     done = schedule(client, [{"period_start": "2026-09-07", "submitted_at": "2026-09-08T10:00:00Z"}], datetime(2026, 9, 9, tzinfo=timezone.utc))
-    assert done["current_status"] == "submitted" and done["next_due_on"] == "2026-09-20"
+    assert done["current_status"] == "submitted" and done["next_due_on"] == "2026-09-15"
 
 
 def test_exercise_history_uses_raw_sets_and_preserves_library_identity():
@@ -113,7 +113,7 @@ def test_schedule_does_not_count_miss_before_local_signup_date():
     result = schedule(dict(timezone="Asia/Kolkata", check_in_day="sunday", created_at="2026-09-06T19:00:00Z"),
                       [], datetime(2026, 9, 8, tzinfo=timezone.utc))
     assert result["missed_count"] == 0
-    assert result["due_on"] == "2026-09-13"
+    assert result["due_on"] == "2026-09-14"
 
 
 def test_sqlite_reloads_every_set_and_preserves_older_weeks(tmp_path):
@@ -122,7 +122,7 @@ def test_sqlite_reloads_every_set_and_preserves_older_weeks(tmp_path):
     with Session(engine) as db:
         seed_demo_data(db, "cl_001")
         service = ClientService(db, "cl_001")
-        earlier = CheckIn(id="historical", client_id="cl_001", period_start=date.today()-timedelta(days=35), energy_score=2, sleep_score=5, sentiment="okay", observation="Original wording")
+        earlier = CheckIn(id="historical", client_id="cl_001", period_start=date.today()-timedelta(days=35), submitted_at=datetime.now(timezone.utc)-timedelta(days=35), energy_score=2, sleep_score=5, sentiment="okay", observation="Original wording")
         db.add(earlier); db.commit()
         saved = service.upsert_current_checkin(CheckInUpsert(**payload()))
         assert saved["ratings"]["digestion"] == 7
@@ -175,3 +175,34 @@ def test_five_photo_poses_replacement_and_delete_via_api():
             assert client.delete(f"/api/v1/client/progress-photos/{second['id']}").json()['deleted']
             assert client.get(second['content_url']).status_code == 404
         assert client.delete('/api/v1/client/progress-photos/not-owned').status_code == 404
+
+
+def test_rolling_edits_keep_anchor_and_waist_history(tmp_path):
+    from app.models.client import BodyEntry
+    from app.schemas.client import BodyEntryUpsert
+    engine = create_engine(f"sqlite:///{tmp_path / 'rolling.db'}")
+    Base.metadata.create_all(engine)
+    with Session(engine) as db:
+        seed_demo_data(db, "cl_001")
+        service = ClientService(db, "cl_001")
+        first = service.upsert_current_checkin(CheckInUpsert(**payload()))
+        second = service.upsert_current_checkin(CheckInUpsert(**{**payload(), "observation": "Edited"}))
+        assert first["id"] == second["id"]
+        assert first["submitted_at"] == second["submitted_at"]
+        due = service.list_checkins(1)["schedule"]["due_on"]
+        assert due == (local_today("Asia/Kolkata", first["submitted_at"].replace(tzinfo=timezone.utc)) + timedelta(days=7)).isoformat()
+        day = service.today()
+        service.upsert_body_entry(day, BodyEntryUpsert(weight_kg=80, waist_cm=90))
+        service.upsert_body_entry(day, BodyEntryUpsert(weight_kg=79))
+        assert db.scalars(select(BodyEntry).where(BodyEntry.client_id == "cl_001", BodyEntry.entry_date == day)).one().waist_cm == 90
+
+
+def test_late_schedule_stays_overdue_until_submission():
+    client = {"timezone": "UTC", "created_at": "2026-09-01"}
+    entries = [{"period_start": "2026-09-02", "submitted_at": "2026-09-02T12:00:00Z"}]
+    result = schedule(client, entries, datetime(2026, 9, 20, tzinfo=timezone.utc))
+    assert result["due_on"] == "2026-09-09"
+    assert result["current_status"] == "overdue"
+    assert result["period_start"] == "2026-09-20"
+    entries.append({"period_start": "2026-09-20", "submitted_at": "2026-09-20T12:00:00Z"})
+    assert schedule(client, entries, datetime(2026, 9, 20, 13, tzinfo=timezone.utc))["due_on"] == "2026-09-27"

@@ -253,32 +253,28 @@ class SupabaseCoachService:
         return self._private_note(rows[0])
 
     def save_setup(self, client_id: str, payload: ClientSetup) -> dict[str, Any]:
-        """Persist Review setup: client profile, measurements, and active targets."""
+        """Update planning context while preserving omitted legacy tracking fields."""
 
         self._require_active_coach()
         self._one("clients", {"id": f"eq.{client_id}"}, "client_not_found")
+        fields = payload.model_dump(exclude_unset=True)
         self._write(
-            "PATCH",
-            "clients",
-            {
-                "primary_goal": payload.primary_goal,
-                "check_in_day": payload.check_in_day,
-                "dietary_preferences": payload.dietary_preferences,
-                "allergies_injuries": payload.allergies_injuries,
-            },
+            "PATCH", "clients",
+            {key: value for key, value in fields.items() if key in {
+                "primary_goal", "check_in_day", "dietary_preferences", "allergies_injuries", "amount_paid"
+            }},
             params={"id": f"eq.{client_id}"},
         )
-        self._write(
-            "PATCH",
-            "client_tracking_preferences",
-            {
-                "enabled_measurements": payload.enabled_measurements,
-                "updated_by_coach_id": self.user.id,
-            },
-            params={"client_id": f"eq.{client_id}"},
-        )
-        self._upsert_active_target(client_id, "weight_kg", payload.target_weight_kg, payload.target_date)
-        self._upsert_active_target(client_id, "waist_cm", payload.target_waist_cm, payload.target_date)
+        if "enabled_measurements" in fields:
+            self._write(
+                "PATCH", "client_tracking_preferences",
+                {"enabled_measurements": payload.enabled_measurements,
+                 "updated_by_coach_id": self.user.id},
+                params={"client_id": f"eq.{client_id}"},
+            )
+        for field, metric in (("target_weight_kg", "weight_kg"), ("target_waist_cm", "waist_cm")):
+            if field in fields:
+                self._upsert_active_target(client_id, metric, getattr(payload, field), payload.target_date)
         self._write(
             "POST",
             "audit_events",
@@ -409,7 +405,7 @@ class SupabaseCoachService:
         """Persist coach-wide defaults. Does not write formula_registry."""
 
         self._require_active_coach()
-        fields = payload.model_dump()
+        fields = payload.model_dump(exclude_unset=True)
         rows = self._write(
             "PATCH",
             "coach_settings",
@@ -592,6 +588,7 @@ class SupabaseCoachService:
             "clients",
             {
                 "primary_goal": payload.primary_goal,
+                "amount_paid": payload.amount_paid,
                 "check_in_day": payload.check_in_day,
                 "timezone": payload.timezone,
                 "dietary_preferences": payload.dietary_preferences,
@@ -728,6 +725,7 @@ class SupabaseCoachService:
             target_date = self._optional_date(waist["target_date"])
         return {
             "primary_goal": client["primary_goal"],
+            "amount_paid": self._number(client.get("amount_paid")),
             "check_in_day": client["check_in_day"],
             "timezone": client.get("timezone") or "Asia/Kolkata",
             "dietary_preferences": client.get("dietary_preferences") or "",

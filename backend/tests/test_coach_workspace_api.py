@@ -971,3 +971,74 @@ def test_list_audit_events_empty_has_no_more(monkeypatch: pytest.MonkeyPatch) ->
     result = service.list_audit_events()
 
     assert result == {"items": [], "has_more": False}
+
+
+def test_simplified_setup_preserves_omitted_legacy_tracking(monkeypatch: pytest.MonkeyPatch) -> None:
+    service = coach_service()
+    writes = []
+    monkeypatch.setattr(service, "_require_active_coach", lambda: None)
+    monkeypatch.setattr(service, "_one", lambda *args: {"id": "client-1"})
+    monkeypatch.setattr(service, "_write", lambda *args, **kwargs: writes.append((args, kwargs)) or [])
+    monkeypatch.setattr(service, "_client_setup", lambda _: {"primary_goal": "strength"})
+    service.save_setup("client-1", ClientSetup(primary_goal="strength", dietary_preferences="Vegetarian"))
+    assert len(writes) == 2
+    assert writes[0][0] == ("PATCH", "clients", {
+        "primary_goal": "strength", "dietary_preferences": "Vegetarian",
+    })
+    assert writes[1][0][1] == "audit_events"
+
+
+def test_simplified_settings_preserve_omitted_weekday_and_measurements(monkeypatch: pytest.MonkeyPatch) -> None:
+    service = coach_service()
+    writes = []
+    monkeypatch.setattr(service, "_require_active_coach", lambda: None)
+    row = {"weight_unit": "kg", "default_check_in_day": "friday",
+           "default_missing_weight_threshold_days": 5,
+           "default_measurement_refresh_threshold_days": 30,
+           "enabled_measurements": ["weight_kg", "waist_cm"]}
+    monkeypatch.setattr(service, "_write", lambda *args, **kwargs: writes.append((args, kwargs)) or [row])
+    result = service.save_settings(CoachSettingsUpdate(
+        weight_unit="kg", default_missing_weight_threshold_days=5,
+        default_measurement_refresh_threshold_days=30,
+    ))
+    assert "default_check_in_day" not in writes[0][0][2]
+    assert "enabled_measurements" not in writes[0][0][2]
+    assert result["default_check_in_day"] == "friday"
+    assert result["enabled_measurements"] == ["weight_kg", "waist_cm"]
+
+
+@pytest.mark.parametrize("amount", [None, 0, 1250.5])
+def test_amount_paid_saved_in_authorized_client_setup(monkeypatch: pytest.MonkeyPatch, amount) -> None:
+    service = coach_service()
+    writes = []
+    monkeypatch.setattr(service, "_require_active_coach", lambda: None)
+    monkeypatch.setattr(service, "_one", lambda *args: {"id": "client-1"})
+    monkeypatch.setattr(service, "_write", lambda *args, **kwargs: writes.append((args, kwargs)) or [])
+    monkeypatch.setattr(service, "_client_setup", lambda _: {"amount_paid": amount})
+    result = service.save_setup("client-1", ClientSetup(primary_goal="strength", amount_paid=amount))
+    assert writes[0][0][2]["amount_paid"] == amount
+    assert writes[0][1]["params"] == {"id": "eq.client-1"}
+    assert result["amount_paid"] == amount
+
+
+def test_amount_paid_rejects_negative_and_nonfinite_values() -> None:
+    from pydantic import ValidationError
+    from app.schemas.coach import ClientOnboardingCreate
+    for amount in [-1, float("inf"), float("nan")]:
+        with pytest.raises(ValidationError):
+            ClientSetup(primary_goal="strength", amount_paid=amount)
+        with pytest.raises(ValidationError):
+            ClientOnboardingCreate(full_name="Test", email="test@example.com", primary_goal="strength", amount_paid=amount)
+
+
+def test_amount_paid_cannot_write_inaccessible_client(monkeypatch: pytest.MonkeyPatch) -> None:
+    service = coach_service()
+    writes = []
+    monkeypatch.setattr(service, "_require_active_coach", lambda: None)
+    def inaccessible(*args):
+        raise APIError(404, "client_not_found", "Client not found")
+    monkeypatch.setattr(service, "_one", inaccessible)
+    monkeypatch.setattr(service, "_write", lambda *args, **kwargs: writes.append(args))
+    with pytest.raises(APIError):
+        service.save_setup("foreign-client", ClientSetup(primary_goal="strength", amount_paid=500))
+    assert writes == []

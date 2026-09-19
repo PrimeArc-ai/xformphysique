@@ -4,7 +4,6 @@ import { coachApi } from '../api/coach'
 import './progress.css'
 
 const poses = [['front', 'Front'], ['back', 'Back'], ['side', 'Side'], ['front_double_bicep', 'Front Double Bicep'], ['back_double_bicep', 'Back Double Bicep']]
-const emptyCheckIns = []
 const isoDay = zone => new Intl.DateTimeFormat('en-CA', { timeZone: zone || 'UTC', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
 const weekOf = day => { const d = new Date(`${day}T12:00:00Z`); d.setUTCDate(d.getUTCDate() - (d.getUTCDay() + 6) % 7); return d.toISOString().slice(0, 10) }
 
@@ -22,7 +21,7 @@ function ProtectedImage({ photo, load, onOpen }) {
   return <button type="button" className="photo-image-button" onClick={() => onOpen({ photo, url })} aria-label={`Zoom ${photo.view.replaceAll('_', ' ')} captured ${photo.captured_on}`}><img src={url} alt={`${photo.view.replaceAll('_', ' ')} progress, ${photo.captured_on}`} /></button>
 }
 
-export default function PhotoJournal({ clientId, token, profile, checkIns = emptyCheckIns, feedbackRevision = 0 }) {
+export default function PhotoJournal({ clientId, token, profile, onBusyChange }) {
   const [photos, setPhotos] = useState([])
   const [hasMore, setHasMore] = useState(false)
   const [pose, setPose] = useState('front')
@@ -31,9 +30,9 @@ export default function PhotoJournal({ clientId, token, profile, checkIns = empt
   const [capturedOn, setCapturedOn] = useState('')
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
+  useEffect(() => { onBusyChange?.(busy) }, [busy, onBusyChange])
   const [zoom, setZoom] = useState(null)
   const [scale, setScale] = useState(1)
-  const [weekNotes, setWeekNotes] = useState(null)
   const dialog = useRef(null)
   const zone = profile?.timezone || 'UTC'
   const today = isoDay(zone)
@@ -52,24 +51,6 @@ export default function PhotoJournal({ clientId, token, profile, checkIns = empt
   const compareWeek = comparison || priorWeek
   const matching = period => photos.filter(p => (p.period_start || weekOf(p.captured_on)) === period && p.view === pose).sort((a, b) => (b.uploaded_at || b.captured_on).localeCompare(a.uploaded_at || a.captured_on))
   const current = matching(chosenWeek)[0], previous = matching(compareWeek)[0]
-  useEffect(() => {
-    let active = true
-    setWeekNotes(null)
-    const read = async () => {
-      let offset = 0
-      while (active) {
-        const result = await (clientId ? coachApi.getCheckIns(clientId, token, offset) : clientApi.getCheckIns(offset))
-        const match = result.items.find(c => c.period_start === chosenWeek)
-        if (match || !result.has_more || result.items.at(-1)?.period_start < chosenWeek) {
-          if (active) setWeekNotes(match?.feedback || null)
-          return
-        }
-        offset += result.items.length
-      }
-    }
-    read().catch(() => { if (active) setWeekNotes({ observations: 'Coach notes could not be loaded. Try the weekly check-in history.' }) })
-    return () => { active = false }
-  }, [chosenWeek, clientId, token, checkIns, feedbackRevision])
   const upload = async e => {
     const file = e.target.files?.[0]; if (!file) return
     e.target.value = ''
@@ -92,7 +73,7 @@ export default function PhotoJournal({ clientId, token, profile, checkIns = empt
     {!clientId && <div className="photo-upload-row"><label>Capture date<input type="date" required max={today} value={capturedOn || (chosenWeek === currentWeek ? today : chosenWeek)} onChange={e => setCapturedOn(e.target.value)} /></label><label className="progress-upload">{current ? 'Replace selected pose' : 'Upload selected pose'}<input type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={upload} /></label></div>}
     {hasMore && <button disabled={busy} onClick={more}>Load older photo weeks</button>}
     {matching(chosenWeek).length > 1 && <details><summary>Other uploads in this week</summary>{matching(chosenWeek).slice(1).map(photo => <div key={photo.id}><ProtectedImage photo={photo} load={loadImage} onOpen={setZoom} /><small>{photo.captured_on} · {photo.id}</small><button onClick={() => remove(photo)} disabled={busy}>Delete this photo</button></div>)}</details>}
-    <div className="photo-week-notes"><strong>Coach notes · week {chosenWeek}</strong><p>{weekNotes?.observations || 'No coach observations recorded for this week.'}</p>{weekNotes?.instructions && <p>Instructions: {weekNotes.instructions}</p>}{weekNotes?.adjustments && <p>Adjustments: {weekNotes.adjustments}</p>}{weekNotes?.next_week_priorities && <p>Next week: {weekNotes.next_week_priorities}</p>}</div>
+    <p className="progress-caption">Photos remain grouped by calendar week. Coach feedback belongs to each check-in; view it in check-in history.</p>
     <p role="status">{message}</p><p className="progress-caption">Private images load only when viewed. No public bucket URLs are shared. Deletion removes image bytes; minimal ID/audit metadata is retained.</p>
     <dialog ref={dialog} className="photo-zoom-dialog" onClose={() => setZoom(null)}><div className="progress-actions"><button onClick={() => dialog.current.close()}>Close image</button><button onClick={async () => { try { if (document.fullscreenElement) await document.exitFullscreen(); else await dialog.current.requestFullscreen() } catch { setMessage('Fullscreen unavailable in this browser. The expanded image remains available.') } }}>Toggle fullscreen</button><label>Zoom<input type="range" min="1" max="3" step="0.25" value={scale} onChange={e => setScale(Number(e.target.value))} /></label></div>{zoom && <><p>{zoom.photo.view.replaceAll('_', ' ')} · {zoom.photo.captured_on}</p><div className="photo-zoom-scroll"><img src={zoom.url} alt={`Expanded ${zoom.photo.view}`} style={{ width: `${scale * 100}%`, maxWidth: 'none' }} /></div></>}</dialog>
   </section>

@@ -87,7 +87,7 @@ class SupabaseClientService:
         target_progress = None
         if start_weight and latest_weight is not None and target is not None and start_weight != target:
             target_progress = max(0, min(100, round(100 * abs(latest_weight - start_weight) / abs(target - start_weight))))
-        due_on = _next_weekday(today, client["check_in_day"])
+        checkin_schedule = schedule(client, checkins)
         return {
             "client": {"id": self.client_id, "first_name": profile["first_name"], "primary_goal": client["primary_goal"]},
             "body": {
@@ -97,7 +97,7 @@ class SupabaseClientService:
                 "target_progress_percent": target_progress,
                 "trend": [{"date": item["entry_date"], "weight_kg": _number(item["weight_kg"])} for item in reversed(body)],
             },
-            "check_ins": {"count": len(checkins), "status": "submitted" if checkins and checkins[0]["period_start"] == _week_start(today).isoformat() else "due"},
+            "check_ins": {"count": len(checkins), "status": checkin_schedule["current_status"]},
             "training_volume": {
                 "range_days": 30,
                 "total_kg": round(sum(daily_volume.values()), 2),
@@ -108,7 +108,7 @@ class SupabaseClientService:
             },
             "next_actions": [
                 {"type": "body_entry", "label": "Log body progress", "due": not latest or latest["entry_date"] != today.isoformat()},
-                {"type": "check_in", "label": "Submit weekly check-in", "due": due_on == today},
+                {"type": "check_in", "label": "Submit weekly check-in", "due": checkin_schedule["current_status"] in ("due", "overdue")},
             ],
         }
 
@@ -129,7 +129,7 @@ class SupabaseClientService:
         rows = self._write(
             "POST",
             "body_entries",
-            {"client_id": self.client_id, "entry_date": entry_date.isoformat(), "weight_kg": payload.weight_kg, "waist_cm": payload.waist_cm},
+            {"client_id": self.client_id, "entry_date": entry_date.isoformat(), **payload.model_dump(exclude_unset=True)},
             params={"on_conflict": "client_id,entry_date"},
             prefer="resolution=merge-duplicates,return=representation",
         )
@@ -163,10 +163,11 @@ class SupabaseClientService:
         }
 
     def upsert_current_checkin(self, payload: CheckInUpsert) -> dict[str, Any]:
+        # Database trigger serializes cycles and preserves first-submission timestamps.
         rows = self._write(
             "POST",
             "weekly_checkins",
-            {"client_id": self.client_id, "period_start": _week_start(self.today()).isoformat(), "submitted_at": datetime.now(timezone.utc).isoformat(), **payload.model_dump()},
+            {"client_id": self.client_id, "period_start": self.today().isoformat(), "submitted_at": datetime.now(timezone.utc).isoformat(), **payload.model_dump()},
             params={"on_conflict": "client_id,period_start"},
             prefer="resolution=merge-duplicates,return=representation",
         )

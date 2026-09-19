@@ -8,6 +8,7 @@ class CoachCreate(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
     full_name: str = Field(min_length=2, max_length=160)
     email: EmailStr
+    phone: str | None = Field(default=None, max_length=32, pattern=r"^[+0-9(). \-]*$")
     professional_title: str = Field(default="Fitness Coach", min_length=2, max_length=120)
 
 
@@ -16,9 +17,15 @@ class AdminCoach(BaseModel):
     full_name: str
     email: str
     professional_title: str | None
+    phone: str | None = None
     is_active: bool
     created_at: datetime
     active_client_count: int
+
+
+class AdminPlatformTotals(BaseModel):
+    total_coaches: int = Field(ge=0)
+    total_clients: int = Field(ge=0)
 
 
 class AdminCoachList(BaseModel):

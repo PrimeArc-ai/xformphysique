@@ -45,14 +45,14 @@ test('live admin lifecycle, database privacy and stale-session revocation', asyn
   const adminSession = await signInApi(admin.email, admin.password)
   const adminToken = adminSession.access_token
 
-  await page.getByRole('button', { name: '+ Onboard coach' }).click()
+  await page.getByRole('button', { name: '+ Enroll coach' }).click()
   const modal = page.getByRole('dialog')
   const coachName = `Rohan Mehta · Admin QA ${stamp}`
   await modal.getByLabel('Full name').fill(coachName)
   await modal.getByLabel('Email', { exact: true }).fill(`admin.qa.coach.${stamp}@example.com`)
   await modal.getByLabel('Professional title').fill('Strength Coach · QA account')
   const creation = page.waitForResponse(response => response.url().endsWith('/api/v1/admin/coaches') && response.request().method() === 'POST')
-  await modal.getByRole('button', { name: 'Create coach', exact: true }).click()
+  await modal.getByRole('button', { name: 'Enroll coach', exact: true }).click()
   const createdResponse = await creation
   expect(createdResponse.status(), 'Live coach creation').toBe(201)
   const coach = await createdResponse.json()

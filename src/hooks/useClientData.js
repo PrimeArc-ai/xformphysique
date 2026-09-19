@@ -115,25 +115,35 @@ export default function useClientData({ enabled, accessToken }) {
 
   const saveBodyEntry = useCallback(async (entry) => {
     const saved = await clientApi.saveBodyEntry(entry)
-    const [dashboard, body] = await Promise.all([clientApi.getDashboard(), clientApi.getBodyEntries()])
-    setData((current) => ({ ...current, dashboard, bodyEntries: body.items.map(toBodyEntry) }))
+    try {
+      const [dashboard, body] = await Promise.all([clientApi.getDashboard(), clientApi.getBodyEntries()])
+      setData((current) => ({ ...current, dashboard, bodyEntries: body.items.map(toBodyEntry) }))
+    } catch {
+      setData(current => ({ ...current, bodyEntries: [toBodyEntry(saved), ...current.bodyEntries.filter(item => item.date !== saved.date)].sort((a, b) => b.date.localeCompare(a.date)) }))
+      return { ...saved, refresh_warning: 'Weight saved. Some displayed data could not refresh; reload to see the latest information.' }
+    }
     return saved
   }, [])
 
   const saveCheckIn = useCallback(async (checkIn) => {
     const saved = await clientApi.saveCheckIn(checkIn)
-    const [dashboard, checkIns, health] = await Promise.all([
-      clientApi.getDashboard(),
-      clientApi.getCheckIns(),
-      clientApi.getHealthSummary(),
-    ])
-    setData((current) => ({
-      ...current,
-      dashboard,
-      checkIns: checkIns.items.map(toCheckIn),
-      checkInSchedule: checkIns.schedule,
-      health,
-    }))
+    try {
+      const [dashboard, checkIns, health] = await Promise.all([
+        clientApi.getDashboard(),
+        clientApi.getCheckIns(),
+        clientApi.getHealthSummary(),
+      ])
+      setData((current) => ({
+        ...current,
+        dashboard,
+        checkIns: checkIns.items.map(toCheckIn),
+        checkInSchedule: checkIns.schedule,
+        health,
+      }))
+    } catch {
+      setData(current => ({ ...current, checkIns: [toCheckIn(saved), ...current.checkIns.filter(item => item.id !== saved.id)] }))
+      return { ...saved, refresh_warning: 'Check-in saved. Some displayed data could not refresh; reload to see your latest schedule and history.' }
+    }
     return saved
   }, [])
 

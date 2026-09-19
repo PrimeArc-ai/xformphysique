@@ -58,8 +58,12 @@ def test_due_reminder_is_sent_once_and_logged(monkeypatch: pytest.MonkeyPatch) -
         if url.endswith("/rest/v1/clients"):
             return FakeResponse(
                 200,
-                [{"id": "client-a", "timezone": "Asia/Kolkata", "check_in_day": "monday"}],
+                [{"id": "client-a", "timezone": "Asia/Kolkata", "check_in_day": "friday", "created_at": "2026-08-17T00:00:00Z"}],
             )
+        if url.endswith("/rest/v1/weekly_checkins"):
+            assert params["client_id"] == "eq.client-a"
+            assert params["order"] == "submitted_at.desc"
+            return FakeResponse(200, [])
         if url.endswith("/rest/v1/notification_deliveries") and method == "GET":
             assert params["client_id"] == "eq.client-a"
             return FakeResponse(200, [])
@@ -94,7 +98,7 @@ def test_reminder_is_not_queued_outside_the_exact_daily_dispatch_time(monkeypatc
                 [{"client_id": "client-a", "whatsapp_destination": "+919999999999", "whatsapp_consent_at": "2026-08-01T00:00:00+00:00", "whatsapp_opted_out_at": None, "checkin_reminders_enabled": True, "reminder_time": "21:30:00"}],
             )
         if url.endswith("/rest/v1/clients"):
-            return FakeResponse(200, [{"id": "client-a", "timezone": "Asia/Kolkata", "check_in_day": "monday"}])
+            return FakeResponse(200, [{"id": "client-a", "timezone": "Asia/Kolkata", "check_in_day": "friday", "created_at": "2026-08-17T00:00:00Z"}])
         raise AssertionError("No delivery record may be queried or written outside the send window")
 
     monkeypatch.setattr(httpx, "request", request)
@@ -107,3 +111,12 @@ def test_reminder_is_not_queued_outside_the_exact_daily_dispatch_time(monkeypatc
 
     assert result.as_payload() == {"evaluated": 1, "queued": 0, "sent": 0, "skipped": 1, "failed": 0}
     assert sender.destinations == []
+
+
+def test_reminder_follows_submission_not_old_weekday():
+    client = {"timezone": "UTC", "created_at": "2026-08-01T00:00:00Z", "check_in_day": "monday"}
+    preference = {"reminder_time": "21:30:00"}
+    entries = [{"period_start": "2026-08-20", "submitted_at": "2026-08-20T12:00:00Z"}]
+    assert CheckinReminderService._is_due_window(client, preference, datetime(2026, 8, 26, 21, 30, tzinfo=timezone.utc), entries)
+    assert not CheckinReminderService._is_due_window(client, preference, datetime(2026, 8, 23, 21, 30, tzinfo=timezone.utc), entries)
+    assert not CheckinReminderService._is_due_window(client, preference, datetime(2026, 8, 28, 21, 30, tzinfo=timezone.utc), entries)

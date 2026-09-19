@@ -15,6 +15,7 @@ async function request(path, token, options = {}) {
 }
 
 export const adminApi = {
+  totals: token => request('/totals', token),
   coaches: token => request('/coaches', token),
   clients: (id, token) => request(`/coaches/${id}/clients`, token),
   createCoach: (data, token) => request('/coaches', token, { method: 'POST', body: JSON.stringify(data) }),

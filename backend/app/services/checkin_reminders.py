@@ -10,9 +10,8 @@ import httpx
 from app.core.config import Settings
 from app.core.errors import APIError
 from app.core.supabase import SupabaseAdminGateway
+from app.services.progress import schedule
 
-
-WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
 
 
 class WhatsAppSender(Protocol):
@@ -109,7 +108,14 @@ class CheckinReminderService:
                 skipped += 1
                 continue
             local_now = self._local_time(now_utc, client.get("timezone"))
-            if local_now is None or not self._is_due_window(client, preference, local_now):
+            if local_now is None or not self._is_dispatch_time(preference, local_now):
+                skipped += 1
+                continue
+            entries = self._rows(admin, "weekly_checkins", {
+                "client_id": f"eq.{client['id']}", "order": "submitted_at.desc", "limit": 1,
+                "select": "submitted_at,period_start",
+            })
+            if not self._is_due_window(client, preference, local_now, entries):
                 skipped += 1
                 continue
             reminder_date = local_now.date()
@@ -183,16 +189,18 @@ class CheckinReminderService:
             return None
 
     @staticmethod
-    def _is_due_window(client: dict[str, Any], preference: dict[str, Any], now: datetime) -> bool:
+    def _is_dispatch_time(preference: dict[str, Any], now: datetime) -> bool:
         reminder_time = time.fromisoformat(preference["reminder_time"])
         scheduled = datetime.combine(now.date(), reminder_time, tzinfo=now.tzinfo)
-        tomorrow_checkin_day = WEEKDAYS[(now.date() + timedelta(days=1)).weekday()]
-        return (
-            client["check_in_day"] == tomorrow_checkin_day
-            # The scheduler invokes this once at the configured local minute;
-            # this is intentionally not a polling window across the hour.
-            and now.replace(second=0, microsecond=0) == scheduled
-        )
+        # The scheduler invokes this once at the configured local minute.
+        return now.replace(second=0, microsecond=0) == scheduled
+
+    @staticmethod
+    def _is_due_window(client: dict[str, Any], preference: dict[str, Any], now: datetime,
+                       entries: list[dict[str, Any]] | None = None) -> bool:
+        return (CheckinReminderService._is_dispatch_time(preference, now)
+                and schedule(client, entries or [], now)["due_on"]
+                == (now.date() + timedelta(days=1)).isoformat())
 
     @staticmethod
     def _rows(

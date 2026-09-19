@@ -8,9 +8,11 @@ import './progress.css'
 export const ratings = [['energy', 'Energy'], ['sleep_quality', 'Sleep quality'], ['hunger', 'Hunger'], ['digestion', 'Digestion'], ['stress', 'Stress'], ['recovery', 'Recovery'], ['strength', 'Strength'], ['workout_performance', 'Workout performance'], ['motivation', 'Motivation'], ['adherence', 'Adherence'], ['overall_wellbeing', 'Overall well-being']]
 const feedbackFields = [['observations', 'Observations'], ['adjustments', 'Adjustments'], ['instructions', 'Instructions'], ['next_week_priorities', 'Next-week priorities']]
 
+const displayDate = value => value ? new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(`${value}T12:00:00`)) : '—'
+
 export function CheckInSchedule({ schedule }) {
   if (!schedule) return null
-  return <section className="progress-schedule" aria-label="Check-in schedule"><div><small>CURRENT CHECK-IN</small><strong>{schedule.due_on}</strong><span>{schedule.current_status} · {schedule.timezone}</span></div><div><small>NEXT CHECK-IN</small><strong>{schedule.next_due_on}</strong><span>Every {schedule.day_of_week} · seven-day cycle</span></div><div><small>PREVIOUS DUE</small><strong>{schedule.previous_due_on}</strong><span>{schedule.missed_count} missed · {schedule.consecutive_missed} consecutive</span></div></section>
+  return <section className="progress-schedule" aria-label="Check-in schedule"><div><small>NEXT CHECK-IN DUE</small><strong>{displayDate(schedule.due_on)}</strong><span>{schedule.current_status} · {schedule.timezone}</span></div><div><small>CHECK-IN CYCLE</small><strong>Every 7 days</strong><span>Seven days after your last submission</span></div><div><small>CYCLE START</small><strong>{displayDate(schedule.previous_due_on)}</strong><span>{schedule.missed_count} missed · {schedule.consecutive_missed} consecutive</span></div></section>
 }
 
 function Feedback({ entry, clientId, token, onSaved }) {
@@ -65,26 +67,31 @@ export function CheckInHistory({ load, clientId, token, revision = 0, onSchedule
   </section>
 }
 
-export default function WeeklyCheckIns({ checkIns, onSave, schedule, profile }) {
+export default function WeeklyCheckIns({ checkIns, onSave, onSaveBodyEntry, schedule, profile }) {
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
   const [revision, setRevision] = useState(0)
+  const [photoBusy, setPhotoBusy] = useState(false)
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: profile?.timezone || 'UTC', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
   const current = checkIns?.find(e => e.period_start === schedule?.period_start)
   const submit = async e => {
     e.preventDefault(); setBusy(true); setMessage('')
     const form = new FormData(e.currentTarget)
+    let weightSaved = false
     try {
-      await onSave({ energy_score: Number(form.get('energy_score')), sleep_score: Number(form.get('sleep_score')), sentiment: form.get('sentiment'), observation: form.get('observation'), concern: form.get('concern') || null, questionnaire_version: 2,
+      const bodyResult = await onSaveBodyEntry({ date: form.get('measurement_date'), weight: Number(form.get('weight')) })
+      weightSaved = true
+      const result = await onSave({ energy_score: Number(form.get('energy_score')), sleep_score: Number(form.get('sleep_score')), sentiment: form.get('sentiment'), observation: form.get('observation'), concern: form.get('concern') || null, questionnaire_version: 2,
         ratings: Object.fromEntries(ratings.map(([key]) => [key, Number(form.get(key))])), challenges: form.get('challenges'), additional_comments: form.get('additional_comments') })
-      setRevision(r => r + 1); setMessage('This week’s check-in saved. Previous weeks are unchanged.')
-    } catch (error) { setMessage(error.message) } finally { setBusy(false) }
+      setRevision(r => r + 1); setMessage(result?.refresh_warning || (bodyResult?.refresh_warning ? 'Check-in and weight saved. Some displayed data could not refresh; reload to see the latest information.' : 'This week’s check-in saved. Previous weeks are unchanged.'))
+    } catch (error) { setMessage(weightSaved ? `Weight saved, but check-in was not completed. ${error.message} Your answers remain here; retry submission.` : `Check-in was not completed. ${error.message}`) } finally { setBusy(false) }
   }
   return <section className="client-page progress-workspace"><div className="client-page-heading"><p className="kicker">CLIENT / WEEKLY CHECK-IN</p><h2>Check in with yourself.</h2><p>Your answers and photos stay between you and your assigned coach.</p></div><CheckInSchedule schedule={schedule} />
-    <form className="panel progress-panel" onSubmit={submit} key={current?.id || schedule?.period_start || 'current'}><h2>{current ? 'Update this week’s check-in' : 'Your week, honestly'}</h2><p>All ratings require your answer. Higher means more of the named signal; high hunger or stress does not mean better.</p><div className="rating-fields">
+    <PhotoJournal profile={profile} checkIns={checkIns} onBusyChange={setPhotoBusy} />
+    <form className="panel progress-panel" onSubmit={submit} key={current?.id || schedule?.period_start || 'current'}><h2>Measurements</h2><p>Record your date and weight. Photos save immediately above; submit below to save weight and complete your check-in.</p><div className="rating-fields"><label>Measurement date<input type="date" name="measurement_date" required max={today} defaultValue={today} /></label><label>Weight (kg)<input type="number" name="weight" required min="0.1" step="0.1" /></label></div><h2>{current ? 'Update this week’s check-in' : 'Your week, honestly'}</h2><p>All ratings require your answer. Higher means more of the named signal; high hunger or stress does not mean better.</p><div className="rating-fields">
       {[['energy_score', 'Energy this week — original scale'], ['sleep_score', 'Sleep quality — original scale']].map(([key, label]) => <label key={key}>{label}<select name={key} required defaultValue={current?.[key] ?? ''}><option value="" disabled>Choose 1–5</option>{[1, 2, 3, 4, 5].map(n => <option key={n}>{n}</option>)}</select></label>)}
       {ratings.map(([key, label]) => <label key={key}>{label} · 1–10<select name={key} required defaultValue={current?.ratings?.[key] ?? ''}><option value="" disabled>Choose a rating</option>{Array.from({ length: 10 }, (_, i) => i + 1).map(n => <option key={n}>{n}</option>)}</select></label>)}
-    </div><label>How has progress felt?<select name="sentiment" required defaultValue={current?.sentiment ?? ''}><option value="" disabled>Choose</option>{['excellent', 'good', 'okay', 'low'].map(s => <option key={s}>{s}</option>)}</select></label><label>What went well?<textarea name="observation" required maxLength="1000" defaultValue={current?.observation || ''} /></label><label>Anything your coach should know?<textarea name="concern" maxLength="1000" defaultValue={current?.concern || ''} /></label><label>Challenges<textarea name="challenges" maxLength="2000" defaultValue={current?.challenges || ''} /></label><label>Additional comments<textarea name="additional_comments" maxLength="2000" defaultValue={current?.additional_comments || ''} /></label><button className="lime-button" disabled={busy}>Submit check-in</button><p role="status">{message}</p></form>
-    <PhotoJournal profile={profile} checkIns={checkIns} />
+    </div><label>How has progress felt?<select name="sentiment" required defaultValue={current?.sentiment ?? ''}><option value="" disabled>Choose</option>{['excellent', 'good', 'okay', 'low'].map(s => <option key={s}>{s}</option>)}</select></label><label>What went well?<textarea name="observation" required maxLength="1000" defaultValue={current?.observation || ''} /></label><label>Anything your coach should know?<textarea name="concern" maxLength="1000" defaultValue={current?.concern || ''} /></label><label>Challenges<textarea name="challenges" maxLength="2000" defaultValue={current?.challenges || ''} /></label><label>Additional comments<textarea name="additional_comments" maxLength="2000" defaultValue={current?.additional_comments || ''} /></label><button className="lime-button" disabled={busy || photoBusy}>Submit check-in</button><p role="status">{message}</p></form>
     <CheckInHistory load={clientApi.getCheckIns} revision={revision} />
   </section>
 }

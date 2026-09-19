@@ -63,7 +63,7 @@ function ClientWorkspace({ auth }) {
   const activePage = active === 'Body Tracker'
     ? <BodyTracker entries={client.bodyEntries} onAddEntry={client.saveBodyEntry} />
     : active === 'Check-ins'
-      ? <CheckInsPage checkIns={client.checkIns} onSave={client.saveCheckIn} schedule={client.checkInSchedule} profile={client.profile} />
+      ? <CheckInsPage checkIns={client.checkIns} onSave={client.saveCheckIn} onSaveBodyEntry={client.saveBodyEntry} schedule={client.checkInSchedule} profile={client.profile} />
       : active === 'Progress Photos'
         ? <PhotosPage profile={client.profile} checkIns={client.checkIns} />
         : active === 'Nutrition'

@@ -6,6 +6,7 @@ from app.core.config import Settings, get_settings
 from app.core.supabase import AuthenticatedUser, get_authenticated_user
 from app.schemas.admin import (
     AdminCoachList,
+    AdminPlatformTotals,
     CoachCreate,
     CoachCreated,
     CoachOffboarded,
@@ -20,6 +21,12 @@ router = APIRouter(prefix="/admin", tags=["Admin"])
 def service(response: Response, settings: Settings = Depends(get_settings), user: AuthenticatedUser = Depends(get_authenticated_user)):
     response.headers["Cache-Control"] = "private, no-store"
     return SupabaseAdminService(settings, user)
+
+
+@router.get("/totals", response_model=AdminPlatformTotals)
+def platform_totals(admin: SupabaseAdminService = Depends(service)):
+    """Aggregate platform counts including unassigned clients; no client identities."""
+    return admin.platform_totals()
 
 
 @router.get("/coaches", response_model=AdminCoachList)

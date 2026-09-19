@@ -23,6 +23,7 @@ Weekday = Literal[
 
 
 class ClientOnboardingCreate(CoachAPIModel):
+    amount_paid: Annotated[float | None, Field(ge=0, allow_inf_nan=False)] = None
     full_name: Annotated[str, Field(min_length=1, max_length=160)]
     email: EmailStr
     primary_goal: Annotated[str, Field(min_length=1, max_length=100)]
@@ -32,7 +33,7 @@ class ClientOnboardingCreate(CoachAPIModel):
     dietary_preferences: Annotated[str, Field(max_length=2000)] = ""
     allergies_injuries: Annotated[str, Field(max_length=2000)] = ""
     enabled_measurements: list[Measurement] = Field(
-        default_factory=lambda: ["weight_kg", "waist_cm"], min_length=1, max_length=4
+        default_factory=lambda: ["weight_kg"], min_length=1, max_length=4
     )
     private_coach_note: Annotated[str, Field(max_length=5000)] = ""
 
@@ -98,11 +99,12 @@ class CoachPrivateNote(BaseModel):
 
 
 class ClientSetup(CoachAPIModel):
+    amount_paid: Annotated[float | None, Field(ge=0, allow_inf_nan=False)] = None
     primary_goal: str
-    check_in_day: Weekday
+    check_in_day: Weekday = "sunday"
     dietary_preferences: str = ""
     allergies_injuries: str = ""
-    enabled_measurements: list[Measurement]
+    enabled_measurements: list[Measurement] = Field(default_factory=lambda: ["weight_kg"])
     target_weight_kg: float | None = None
     target_waist_cm: float | None = None
     target_date: date | None = None
@@ -113,6 +115,7 @@ class PrivateNoteCreate(CoachAPIModel):
 
 
 class ClientSetupResponse(BaseModel):
+    amount_paid: Annotated[float | None, Field(ge=0, allow_inf_nan=False)] = None
     primary_goal: str
     check_in_day: Weekday
     timezone: str
@@ -254,10 +257,10 @@ class CoachLibrariesResponse(BaseModel):
 
 class CoachSettingsUpdate(CoachAPIModel):
     weight_unit: Literal["kg", "lb"]
-    default_check_in_day: Weekday
+    default_check_in_day: Weekday = "sunday"
     default_missing_weight_threshold_days: int = Field(ge=1, le=90)
     default_measurement_refresh_threshold_days: int = Field(ge=1, le=365)
-    enabled_measurements: list[Measurement]
+    enabled_measurements: list[Measurement] = Field(default_factory=lambda: ["weight_kg"])
 
 
 class CoachSettingsResponse(BaseModel):
