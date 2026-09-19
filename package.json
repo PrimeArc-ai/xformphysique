@@ -8,16 +8,20 @@
     "dev:lan": "vite --host 0.0.0.0 --port 5173 --strictPort",
     "build": "vite build",
     "preview": "vite preview",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "cloudflare:check": "wrangler deploy --dry-run",
+    "cloudflare:deploy": "wrangler deploy"
   },
   "dependencies": {
+    "@cloudflare/containers": "0.3.7",
     "@supabase/supabase-js": "^2.112.3",
-    "@vitejs/plugin-react": "latest",
-    "react": "latest",
-    "react-dom": "latest",
-    "vite": "latest"
+    "@vitejs/plugin-react": "6.1.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "vite": "8.2.2"
   },
   "devDependencies": {
-    "@playwright/test": "^1.62.1"
+    "@playwright/test": "^1.62.1",
+    "wrangler": "^4.134.0"
   }
 }

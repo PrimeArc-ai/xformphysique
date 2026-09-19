@@ -1,0 +1,19 @@
+services:
+  app:
+    build: .
+    image: xform-coaching-os:demo
+    restart: unless-stopped
+    env_file: backend/.env
+    environment:
+      XFORM_ENVIRONMENT: production
+      XFORM_CORS_ORIGINS: ${XFORM_DEMO_ORIGIN:-http://localhost:8080}
+      XFORM_CLIENT_INVITE_REDIRECT_URL: ${XFORM_DEMO_ORIGIN:-http://localhost:8080}/
+    ports:
+      - "127.0.0.1:18080:8080"
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate --url http://app:8080
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy

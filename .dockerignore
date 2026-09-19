@@ -1,0 +1,11 @@
+**
+!backend/
+!backend/pyproject.toml
+!backend/app/
+!backend/app/**
+!dist/
+!dist/**
+!deploy/
+!deploy/server.py
+**/__pycache__/
+**/*.pyc

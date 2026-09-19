@@ -1,0 +1,34 @@
+services:
+  - type: web
+    name: xform-client-demo
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./deploy/Dockerfile.render
+    dockerContext: .
+    healthCheckPath: /healthz
+    envVars:
+      - key: XFORM_ENVIRONMENT
+        value: production
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      - key: XFORM_SUPABASE_URL
+        sync: false
+      - key: XFORM_SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      - key: XFORM_SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: XFORM_R2_ACCOUNT_ID
+        value: 4a269f17a7c54e86f05aa8b207d1d6a5
+      - key: XFORM_R2_ACCESS_KEY_ID
+        sync: false
+      - key: XFORM_R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: XFORM_R2_BUCKET_NAME
+        sync: false
+      - key: XFORM_CORS_ORIGINS
+        sync: false
+      - key: XFORM_CLIENT_INVITE_REDIRECT_URL
+        sync: false

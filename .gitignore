@@ -14,5 +14,9 @@ backend/.env
 backend/data/
 backend/.pytest_cache/
 backend/**/__pycache__/
+deploy/__pycache__/
 *.egg-info/
 *.py[cod]
+.wrangler/
+.dev.vars*
+worker-configuration.d.ts

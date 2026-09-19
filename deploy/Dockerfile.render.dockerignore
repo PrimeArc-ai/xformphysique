@@ -1,0 +1,16 @@
+**
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!index.html
+!vite.config.js
+!src/
+!src/**
+!backend/
+!backend/pyproject.toml
+!backend/app/
+!backend/app/**
+!deploy/
+!deploy/server.py
+**/__pycache__/
+**/*.pyc
