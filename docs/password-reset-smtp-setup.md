@@ -1,6 +1,24 @@
 # Real email password recovery
 
-Status as of 11 September 2026: frontend recovery is connected to Supabase Auth. The approved local Site URL and exact redirect entry have been saved in the live project. One live reset-email request for the user-approved client address was accepted by the current Supabase sender. Inbox receipt and password-change acceptance are still pending user verification. Custom SMTP remains disabled.
+Status as of 21 September 2026: frontend recovery is connected to Supabase Auth. Brevo SMTP is now configured in Supabase Auth email settings (host `smtp-relay.brevo.com`, port `587`, Brevo SMTP login, custom sender name). Redirect allowlist still includes the production client URL. End-to-end mailbox acceptance (invite received, password set, fresh sign-in success) remains the final gate.
+
+
+## Phase 1 testing update — 21 September 2026
+
+Brevo Free is selected for current testing (300 emails/day at the time checked). Resend instructions below remain an alternative, not the selected setup. No paid plan is authorized.
+
+1. Create or sign in to the Brevo Free account and complete provider/transactional-email activation.
+2. Add the chosen sender address and verify its inbox code. For testing without an authenticated domain, Brevo may substitute a provider-managed sender address. Authenticate a business domain before branded production delivery.
+3. In Brevo's SMTP settings, obtain the SMTP login and SMTP key (not the normal account password or REST API key).
+4. In Supabase Authentication email/SMTP settings, custom SMTP is enabled with host `smtp-relay.brevo.com`, port `587`, Brevo SMTP login, SMTP key, sender name `XForm Physique`, and a verified sender address.
+5. Keep the exact allowed redirect `https://xform-client-demo.onrender.com/`. The application explicitly supplies this public origin for invitations/recovery. Preserve other existing redirect URLs and the Supabase confirmation link template.
+6. Disable click/open tracking for authentication emails if enabled. Send one invitation to a user-approved test recipient, confirm inbox receipt, have the recipient set their password, and verify the intended client workspace opens. Test recovery separately with the recipient entering their own replacement password.
+
+The server key and R2 configuration do not need to change. Supabase sends the SMTP messages, not the Render web container. Provider free quotas and Supabase Auth rate limits both apply.
+
+Current completion: provider selected, SMTP configured in Supabase, redirect allowlist verified, and at least one live invitation request accepted (new Auth user row created). Real recipient inbox acceptance and completed password-set + fresh sign-in verification remain pending. This is not yet evidence of reliable production delivery.
+
+References: [Brevo free limits](https://help.brevo.com/hc/en-us/articles/208580669-FAQs-What-are-the-limits-of-the-Free-plan), [SMTP setup](https://help.brevo.com/hc/en-us/articles/7924908994450-Send-transactional-emails-using-Brevo-SMTP), [sender verification](https://help.brevo.com/hc/en-us/articles/208836149-Create-a-new-sender-From-name-and-From-email), [Supabase SMTP](https://supabase.com/docs/guides/auth/auth-smtp).
 
 ## What actually changes in the database
 

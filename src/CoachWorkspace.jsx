@@ -178,12 +178,12 @@ function NewClientForm({ onCancel, onCreate }) {
   return <div className="modal-backdrop"><form className="signal-modal coach-modal" onSubmit={submit}><button className="modal-close" type="button" onClick={onCancel} disabled={saving} aria-label="Close client enrollment"><CoachGlyph name="close" /></button><p className="kicker">COACH / ENROLLMENT</p><h2>Enroll client</h2><p>A secure invitation lets the client set their own password. No credentials are sent in email.</p><div className="coach-form-grid"><label>Full name<input name="fullName" required placeholder="Client name" /></label><label>Email<input name="email" type="email" required placeholder="client@example.com" /></label><label>Primary goal<select name="goal" defaultValue="fat_loss"><option value="fat_loss">Fat loss</option><option value="body_recomposition">Body recomposition</option><option value="strength">Strength</option><option value="performance">Performance</option></select></label><label>Amount paid<input name="amountPaid" type="number" min="0" step="any" placeholder="Not recorded" /><small>Record payments received outside this app.</small></label><label>Timezone<input name="timezone" defaultValue="Asia/Kolkata" required /></label><label className="wide-field">Dietary preferences<textarea name="dietaryPreferences" rows="2" placeholder="Vegetarian, food preferences…" /></label><label className="wide-field">Allergies, restrictions, injuries<textarea name="allergiesInjuries" rows="3" placeholder="Planning context for the client record…" /></label><label className="wide-field">Private coach note<textarea name="privateCoachNote" rows="3" placeholder="Internal context. Never shown to the client." /></label></div><footer className="coach-modal-footer"><span role="status">{error || 'The client receives a time-limited account-setup link.'}</span><button className="coach-primary" type="submit" disabled={saving}>{saving ? 'Creating invitation…' : <>Create & email invite <CoachGlyph name="chevron" /></>}</button></footer></form></div>
 }
 
-function CoachClients({ clients, onSelectClient, onCreateClient, notice }) {
+function CoachClients({ clients, onSelectClient, onCreateClient }) {
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState('All')
   const [showCreate, setShowCreate] = useState(false)
   const matches = useMemo(() => clients.filter((client) => (`${client.name} ${client.id}`).toLowerCase().includes(query.toLowerCase()) && (filter === 'All' || (filter === 'Needs attention' && client.attention) || client.status === filter)), [clients, query, filter])
-  return <section className="coach-page"><CoachHeading eyebrow="COACH / CLIENT OPERATIONS" title="Clients" copy="Every client record, one controlled workspace." action={<button className="coach-primary" onClick={() => setShowCreate(true)}><CoachGlyph name="plus" />Enroll client</button>} /><div className="coach-roster-tools"><label className="coach-search"><CoachGlyph name="search" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search clients or ID" /></label><div className="coach-filter-group" aria-label="Client filters">{['All', 'Needs attention', 'On track', 'Missing data'].map((option) => <button className={filter === option ? 'selected' : ''} onClick={() => setFilter(option)} key={option}>{option}</button>)}</div><button className="coach-quiet-button" onClick={() => notice('CSV preview needs backend validation endpoint.')}><CoachGlyph name="export" />CSV preview</button></div><section className="coach-client-list">{matches.map((client) => <article key={client.id}><div className="roster-avatar">{client.initials}</div><div className="roster-primary"><div className="coach-roster-title"><strong>{client.name}</strong>{client.foundation_intake_status === 'pending' ? <Status tone="warn" className="coach-roster-chip">Intake pending</Status> : null}</div><span>{client.id} · {client.goal}</span></div><div><small>WEIGHT</small><span>{client.weight}</span></div><div><small>LAST ENTRY</small><span>{client.lastEntry}</span></div><div><small>CHECK-IN</small><span>{client.checkIn}</span></div><Status tone={client.attention ? 'warning' : 'good'}>{client.status}</Status><button className="row-open" onClick={() => onSelectClient(client.id)}>Review <CoachGlyph name="chevron" /></button></article>)}</section>{!matches.length && <div className="coach-empty"><CoachGlyph name="search" /><strong>No matching clients</strong><span>Change search or filter.</span></div>}{showCreate && <NewClientForm onCancel={() => setShowCreate(false)} onCreate={onCreateClient} />}</section>
+  return <section className="coach-page"><CoachHeading eyebrow="COACH / CLIENT OPERATIONS" title="Clients" copy="Every client record, one controlled workspace." action={<button className="coach-primary" onClick={() => setShowCreate(true)}><CoachGlyph name="plus" />Enroll client</button>} /><div className="coach-roster-tools"><label className="coach-search"><CoachGlyph name="search" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search clients or ID" /></label><div className="coach-filter-group" aria-label="Client filters">{['All', 'Needs attention', 'On track', 'Missing data'].map((option) => <button className={filter === option ? 'selected' : ''} onClick={() => setFilter(option)} key={option}>{option}</button>)}</div></div><section className="coach-client-list">{matches.map((client) => <article key={client.id}><div className="roster-avatar">{client.initials}</div><div className="roster-primary"><div className="coach-roster-title"><strong>{client.name}</strong>{client.foundation_intake_status === 'pending' ? <Status tone="warn" className="coach-roster-chip">Intake pending</Status> : null}</div><span>{client.id} · {client.goal}</span></div><div><small>WEIGHT</small><span>{client.weight}</span></div><div><small>LAST ENTRY</small><span>{client.lastEntry}</span></div><div><small>CHECK-IN</small><span>{client.checkIn}</span></div><Status tone={client.attention ? 'warning' : 'good'}>{client.status}</Status><button className="row-open" onClick={() => onSelectClient(client.id)}>Review <CoachGlyph name="chevron" /></button></article>)}</section>{!matches.length && <div className="coach-empty"><CoachGlyph name="search" /><strong>No matching clients</strong><span>Change search or filter.</span></div>}{showCreate && <NewClientForm onCancel={() => setShowCreate(false)} onCreate={onCreateClient} />}</section>
 }
 
 function CoachNutrition({ clientId, clients, setClientId, accessToken }) {
@@ -488,7 +488,7 @@ function CoachSettings({ notice, account, profilePhoto, onUploadProfilePhoto, ac
       <CoachProfilePhoto account={account} profilePhoto={profilePhoto} onUploadProfilePhoto={onUploadProfilePhoto} />
       <div className="coach-settings-layout">
         <nav>
-          {['System setup', 'Data tools', 'Security'].map((item) => (
+          {['System setup', 'Security'].map((item) => (
             <button className={active === item ? 'selected' : ''} onClick={() => setActive(item)} key={item} type="button">{item}</button>
           ))}
         </nav>
@@ -526,28 +526,6 @@ function CoachSettings({ notice, account, profilePhoto, onUploadProfilePhoto, ac
                   </footer>
                 </form>
               )}
-            </>
-          )}
-          {active === 'Data tools' && (
-            <>
-              <header>
-                <div>
-                  <p className="kicker">DATA TOOLS</p>
-                  <span>CSV contract preview. No local file processing yet.</span>
-                </div>
-              </header>
-              <div className="coach-data-tools">
-                <article>
-                  <CoachGlyph name="upload" />
-                  <div><strong>Import clients</strong><span>Validate required fields, duplicate IDs and invalid values before commit.</span></div>
-                  <button className="coach-primary" type="button" onClick={() => notice('CSV import is not in this slice')}>Preview import</button>
-                </article>
-                <article>
-                  <CoachGlyph name="export" />
-                  <div><strong>Export client data</strong><span>Generate controlled export by client and time range.</span></div>
-                  <button className="coach-secondary" type="button" onClick={() => notice('CSV export is not in this slice')}>Prepare export</button>
-                </article>
-              </div>
             </>
           )}
           {active === 'Security' && (
@@ -886,7 +864,7 @@ export default function CoachWorkspace({ account, accessToken, onSignOut }) {
   const unavailableClientPage = requiresClient && (!selectedClient || rosterLoading)
   const page = unavailableClientPage ? <CoachNoClient loading={rosterLoading} onCreate={() => setShowCreate(true)} />
     : active === 'Overview' ? <CoachOverview clients={clients} selectClient={openReview} navigate={choose} onCreate={() => setShowCreate(true)} />
-    : active === 'Clients' ? <CoachClients clients={clients} onSelectClient={openReview} onCreateClient={createClient} notice={setNotice} />
+    : active === 'Clients' ? <CoachClients clients={clients} onSelectClient={openReview} onCreateClient={createClient} />
       : active === 'Review' ? <PersistedCoachReview key={selectedClient.id} client={selectedClient} accessToken={accessToken} navigate={choose} onNotice={setNotice} />
         : active === 'Body Tracker' ? <PersistedCoachReview key={selectedClient.id} client={selectedClient} accessToken={accessToken} navigate={choose} onNotice={setNotice} bodyOnly />
           : active === 'Nutrition' ? <CoachNutrition clientId={selectedClientId} clients={clients} setClientId={setSelectedClientId} accessToken={accessToken} />

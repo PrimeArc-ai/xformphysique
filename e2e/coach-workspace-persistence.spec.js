@@ -238,6 +238,7 @@ test('clients list shows the intake pending roster chip', async ({ page }) => {
   await loginCoach(page)
 
   await openNav(page, 'Clients')
+  await expect(page.getByRole('button', { name: 'CSV preview', exact: true })).toHaveCount(0)
   await expect(page.getByText('Intake pending')).toBeVisible()
 })
 
@@ -282,6 +283,9 @@ test('settings persist a missing-weight threshold of 5 after reload', async ({ p
   await loginCoach(page)
 
   await openNav(page, 'Settings')
+  await expect(page.getByRole('button', { name: 'Data tools', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Preview import', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Prepare export', exact: true })).toHaveCount(0)
   const threshold = page.getByLabel('Missing weight threshold (days)')
   await expect(threshold).toHaveValue('3')
   await threshold.fill('5')

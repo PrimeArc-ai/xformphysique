@@ -20,7 +20,8 @@ Brevo Free was selected for invitation and password-recovery testing on 21 Septe
 - AI or richer recipe generation.
 - Lab and blood-report uploads.
 - CSV import/export.
+- Admin UI for reassignment after coach offboarding.
 
 ## Data retention
 
-Offboarding retains client history and ends the coach's access/assignments. No age-based retention period or automatic history purge has been approved. Photo cleanup is limited to explicitly deleted/replaced images; it is not a client-history retention policy. Historical deletion backfill requires a separate reviewed decision.
+Offboarding retains client history and ends the coach's access/assignments. No age-based retention period or automatic history purge has been approved yet. Reassignment can be done operationally outside the current admin UI while retaining full history continuity. Photo cleanup is limited to explicitly deleted/replaced images; it is not a client-history retention policy. Historical deletion backfill requires a separate reviewed decision.
