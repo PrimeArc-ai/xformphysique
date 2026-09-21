@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 import logging
 from contextlib import asynccontextmanager
 from uuid import uuid4
@@ -23,6 +24,7 @@ from app.db.session import SessionLocal, engine
 from app.db.upgrades import upgrade_local_schema
 from app.services.client import seed_demo_data
 from app.services.photo_storage import LocalPhotoStorage
+from app.services.photo_cleanup import run_photo_cleanup
 
 
 logger = logging.getLogger(__name__)
@@ -70,7 +72,22 @@ async def lifespan(_: FastAPI):
         LocalPhotoStorage()
         with SessionLocal() as db:
             seed_demo_data(db, settings.demo_client_id)
-    yield
+    cleanup_stop = threading.Event()
+    cleanup_thread = None
+    if (settings.environment == "production" and settings.photo_cleanup_enabled
+            and settings.supabase_admin_enabled and settings.r2_enabled):
+        # A daemon cannot hold process exit hostage to synchronous provider I/O.
+        # Durable leases recover any interrupted deletion or acknowledgement.
+        cleanup_thread = threading.Thread(target=run_photo_cleanup, args=(settings, cleanup_stop),
+                                          name="photo-cleanup", daemon=True)
+        cleanup_thread.start()
+    try:
+        yield
+    finally:
+        cleanup_stop.set()
+        if cleanup_thread:
+            cleanup_thread.join(timeout=5)
+
 
 
 app = FastAPI(

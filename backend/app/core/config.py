@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     storage_dir: Path = BACKEND_DIR / "data" / "progress-photos"
     cors_origins: str = "http://127.0.0.1:5173,http://localhost:5173"
     demo_client_id: str = "cl_001"
+    photo_cleanup_enabled: bool = True
     max_photo_bytes: int = 10 * 1024 * 1024
     max_profile_photo_bytes: int = 2 * 1024 * 1024
     supabase_url: str | None = None

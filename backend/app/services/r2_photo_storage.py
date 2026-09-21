@@ -127,6 +127,7 @@ class R2PhotoStorage:
             return self._client
         try:
             import boto3
+            from botocore.config import Config
         except ImportError as exc:
             raise APIError(
                 503,
@@ -139,6 +140,7 @@ class R2PhotoStorage:
             aws_access_key_id=self.settings.r2_access_key_id,
             aws_secret_access_key=self.settings.r2_secret_access_key,
             region_name="auto",
+            config=Config(connect_timeout=5, read_timeout=15, retries={"mode": "standard", "total_max_attempts": 3}),
         )
         return self._client
 
