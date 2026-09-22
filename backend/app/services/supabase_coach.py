@@ -8,6 +8,7 @@ from urllib.parse import quote
 from app.core.config import Settings
 from app.core.errors import APIError
 from app.core.supabase import AuthenticatedUser, SupabaseAdminGateway, SupabaseGateway
+from app.services.auth_email_link_config import AuthEmailLinkConfigService
 from app.schemas.coach import (
     ClientCoachingContextUpdate,
     ClientOnboardingCreate,
@@ -39,6 +40,7 @@ class SupabaseCoachService:
 
     def invite_and_onboard_client(self, payload: ClientOnboardingCreate) -> dict[str, Any]:
         self._require_active_coach()
+        redirect_url, _ = AuthEmailLinkConfigService(self.settings).get_redirect_url()
         admin = SupabaseAdminGateway(self.settings)
         invitation = admin.request(
             "POST",
@@ -51,7 +53,7 @@ class SupabaseCoachService:
                     "xform_invitation": True,
                     "xform_password_set": False,
                 },
-                "redirect_to": self.settings.client_invite_redirect_url,
+                "redirect_to": redirect_url,
             },
         ).json()
         client_id = invitation.get("id") or invitation.get("user", {}).get("id")

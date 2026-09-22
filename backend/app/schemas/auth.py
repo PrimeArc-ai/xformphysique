@@ -16,3 +16,10 @@ class DirectPasswordSet(BaseModel):
         if separator != "@" or not local or "." not in domain or " " in email:
             raise ValueError("Enter a valid email address.")
         return email
+
+
+class AuthEmailLinkConfigResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    redirect_url: str
+    source: str

@@ -30,7 +30,8 @@ class Settings(BaseSettings):
     # privileged provisioning actions such as inviting a new client.
     supabase_secret_key: str | None = None
     supabase_service_role_key: str | None = None
-    client_invite_redirect_url: str = "http://127.0.0.1:5173"
+    # Legacy fallback used only when DB-backed auth_email_link_config is unavailable.
+    client_invite_redirect_url: str = "http://127.0.0.1:5173/"
     checkin_reminder_job_token: str | None = None
     twilio_account_sid: str | None = None
     twilio_auth_token: str | None = None

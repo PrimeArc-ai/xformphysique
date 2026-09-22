@@ -7,6 +7,27 @@ const DEMO_WORKSPACES = {
   admin: { id: 'local-demo-admin', email: 'admin@xform.local', first_name: 'Navaneet', full_name: 'Navaneet Deshpande', role: 'admin' },
 }
 
+async function fetchAuthEmailRedirectUrl() {
+  let response
+  try {
+    response = await fetch('/api/v1/auth/email-link-config', {
+      headers: { Accept: 'application/json' },
+    })
+  } catch {
+    throw new Error('Unable to reach the XForm server. Please try again.')
+  }
+  const payload = await response.json().catch(() => null)
+  if (!response.ok) {
+    const message = typeof payload?.error?.message === 'string' ? payload.error.message : null
+    throw new Error(message || 'Reset email configuration is unavailable right now. Please try again.')
+  }
+  const redirectUrl = typeof payload?.redirect_url === 'string' ? payload.redirect_url.trim() : ''
+  if (!redirectUrl) {
+    throw new Error('Reset email redirect URL is not configured yet. Contact support.')
+  }
+  return redirectUrl
+}
+
 function demoSession(portal) {
   const workspace = DEMO_WORKSPACES[['client', 'coach', 'admin'].includes(portal) ? portal : 'client']
   return {
@@ -48,6 +69,7 @@ export default function useAuth() {
   const recovering = useRef(initialRecoveryRedirect)
   const signingIn = useRef(false)
   const generation = useRef(0)
+  const authEmailRedirectUrl = useRef(null)
 
   const recoveryRedirect = () => {
     const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''))
@@ -151,8 +173,10 @@ export default function useAuth() {
 
   const requestPasswordReset = useCallback(async ({ email }) => {
     if (!supabaseConfigured || !supabase) throw new Error('Password recovery requires configured authentication. No email was sent from this local demo.')
+    const redirectTo = authEmailRedirectUrl.current || await fetchAuthEmailRedirectUrl()
+    authEmailRedirectUrl.current = redirectTo
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: `${window.location.origin}/`,
+      redirectTo,
     })
     if (error) throw error
     return { sent: true, localDemo: false }

@@ -6,12 +6,21 @@ from fastapi import APIRouter, Depends, Response
 from app.core.config import Settings, get_settings
 from app.core.errors import APIError
 from app.core.supabase import AuthenticatedUser, get_authenticated_user
-from app.schemas.auth import DirectPasswordSet
+from app.schemas.auth import AuthEmailLinkConfigResponse, DirectPasswordSet
+from app.services.auth_email_link_config import AuthEmailLinkConfigService
 from app.services.supabase_admin import set_password_by_email
 from app.services.supabase_client import SupabaseClientService
 
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
+
+
+@router.get("/email-link-config", response_model=AuthEmailLinkConfigResponse)
+def get_email_link_config(
+    settings: Settings = Depends(get_settings),
+):
+    redirect_url, source = AuthEmailLinkConfigService(settings).get_redirect_url()
+    return {"redirect_url": redirect_url, "source": source}
 
 
 @router.post("/set-password")

@@ -1,6 +1,6 @@
 # Real email password recovery
 
-Status as of 21 September 2026: frontend recovery is connected to Supabase Auth. Brevo SMTP is now configured in Supabase Auth email settings (host `smtp-relay.brevo.com`, port `587`, Brevo SMTP login, custom sender name). Redirect allowlist still includes the production client URL. End-to-end mailbox acceptance (invite received, password set, fresh sign-in success) remains the final gate.
+Status as of 22 September 2026: frontend recovery is connected to Supabase Auth. Brevo SMTP is configured in Supabase Auth email settings (host `smtp-relay.brevo.com`, port `587`, Brevo SMTP login, custom sender name). Auth email redirect URLs are now resolved from a Supabase DB-backed config row (`public.auth_email_link_config`) via `/api/v1/auth/email-link-config`, with the old env value used only as fallback. End-to-end mailbox acceptance (invite received, password set, fresh sign-in success) remains the final gate.
 
 
 ## Phase 1 testing update — 21 September 2026
@@ -22,7 +22,7 @@ References: [Brevo free limits](https://help.brevo.com/hc/en-us/articles/2085806
 
 ## What actually changes in the database
 
-1. The app calls `supabase.auth.resetPasswordForEmail(email, { redirectTo })`.
+1. The app reads the redirect destination from `/api/v1/auth/email-link-config` (backed by `public.auth_email_link_config`) and then calls `supabase.auth.resetPasswordForEmail(email, { redirectTo })`.
 2. Supabase generates a recovery link and sends it through the project's SMTP provider. Requesting a link does **not** change the password.
 3. The user opens the valid link and enters and confirms a new password.
 4. The app calls `supabase.auth.updateUser({ password })` using that authenticated recovery session. Supabase stores the replacement password hash in `auth.users.encrypted_password`.
