@@ -45,6 +45,7 @@ class SupabaseCoachService:
         invitation = admin.request(
             "POST",
             "/auth/v1/invite",
+            params={"redirect_to": redirect_url},
             json={
                 "email": str(payload.email),
                 "data": {
@@ -53,7 +54,6 @@ class SupabaseCoachService:
                     "xform_invitation": True,
                     "xform_password_set": False,
                 },
-                "redirect_to": redirect_url,
             },
         ).json()
         client_id = invitation.get("id") or invitation.get("user", {}).get("id")

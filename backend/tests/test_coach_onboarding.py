@@ -38,9 +38,10 @@ def test_coach_invitation_provisions_owned_client(monkeypatch: pytest.MonkeyPatc
             return FakeResponse(200, [{"id": "coach-id", "role": "coach"}])
         if url.endswith("/rest/v1/coaches"):
             return FakeResponse(200, [{"id": "coach-id", "is_active": True}])
-        if url.endswith("/auth/v1/invite"):
+        if "/auth/v1/invite" in url:
             assert kwargs["headers"]["Authorization"] == "Bearer sb_secret_test"
-            assert kwargs["json"]["redirect_to"] == "https://app.example.test/"
+            assert kwargs["params"]["redirect_to"] == "https://app.example.test/"
+            assert "redirect_to" not in kwargs["json"]
             return FakeResponse(200, {"id": "client-id"})
         if url.endswith("/rest/v1/clients"):
             return FakeResponse(200, [{"client_code": "XP-0042", "primary_goal": "fat_loss", "check_in_day": "sunday"}])
@@ -71,7 +72,7 @@ def test_coach_invitation_provisions_owned_client(monkeypatch: pytest.MonkeyPatc
         "invitation_sent": True,
     }
     paths = [url for _, url, _ in requests]
-    assert any(path.endswith("/auth/v1/invite") for path in paths)
+    assert any("/auth/v1/invite" in path for path in paths)
     assert any(path.endswith("/rest/v1/coach_client_assignments") for path in paths)
     client_patch = next(
         kwargs["json"]
